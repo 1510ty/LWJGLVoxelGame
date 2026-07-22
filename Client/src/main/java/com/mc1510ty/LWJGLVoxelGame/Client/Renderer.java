@@ -15,11 +15,13 @@
 //        along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package com.mc1510ty.LWJGLVoxelGame.Client;
 
-import org.joml.Matrix4f;
+import org.joml.Matrix4d;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
-import java.nio.FloatBuffer;
 
+import java.nio.DoubleBuffer;
+
+import static org.lwjgl.opengl.ARBGPUShaderFP64.*;
 import static org.lwjgl.opengl.GL11.*;
 import static org.lwjgl.opengl.GL20.*;
 import static org.lwjgl.opengl.GL30.*;
@@ -27,7 +29,8 @@ import static org.lwjgl.opengl.GL30.*;
 public class Renderer {
     private int shaderProgram;
     private int vao;
-    private FloatBuffer matrixBuffer;
+    private int vbo; // ← フィールドとして保持するように追加！
+    private DoubleBuffer matrixBuffer;
 
     private int uiVao;
     private int uiVbo;
@@ -35,18 +38,18 @@ public class Renderer {
 
     public Renderer() {
         setupBuffersAndShaders();
-        initUI(); // ここでUI用の初期化を呼び出すように追加
-        matrixBuffer = MemoryUtil.memAllocFloat(16);
+        initUI();
+        matrixBuffer = MemoryUtil.memAllocDouble(16);
     }
 
     public void initUI() {
-        float[] vertices = {
-                0.0f, 1.0f,
-                0.0f, 0.0f,
-                1.0f, 0.0f,
-                1.0f, 0.0f,
-                1.0f, 1.0f,
-                0.0f, 1.0f
+        double[] vertices = {
+                0.0d, 1.0d,
+                0.0d, 0.0d,
+                1.0d, 0.0d,
+                1.0d, 0.0d,
+                1.0d, 1.0d,
+                0.0d, 1.0d
         };
 
         uiVao = glGenVertexArrays();
@@ -55,24 +58,24 @@ public class Renderer {
         glBindBuffer(GL_ARRAY_BUFFER, uiVbo);
         glBufferData(GL_ARRAY_BUFFER, vertices, GL_STATIC_DRAW);
 
-        glVertexAttribPointer(0, 2, GL_FLOAT, false, 2 * Float.BYTES, 0);
+        glVertexAttribPointer(0, 2, GL_DOUBLE, false, 2 * Double.BYTES, 0);
         glEnableVertexAttribArray(0);
 
-        String vsSource = "#version 330 core\n" +
-                "layout (location = 0) in vec2 aPos;\n" +
-                "uniform mat4 projection;\n" +
-                "uniform vec2 position;\n" +
-                "uniform vec2 scale;\n" +
+        String vsSource = "#version 460 core\n" +
+                "layout (location = 0) in dvec2 aPos;\n" +
+                "uniform dmat4 projection;\n" +
+                "uniform dvec2 position;\n" +
+                "uniform dvec2 scale;\n" +
                 "void main() {\n" +
-                "   vec2 pos = aPos * scale + position;\n" +
-                "   gl_Position = projection * vec4(pos, 0.0, 1.0);\n" +
+                "   dvec2 pos = aPos * scale + position;\n" +
+                "   gl_Position = vec4(projection * dvec4(pos, 0.0, 1.0));\n" +
                 "}";
 
-        String fsSource = "#version 330 core\n" +
+        String fsSource = "#version 460 core\n" +
                 "out vec4 FragColor;\n" +
-                "uniform vec3 color;\n" +
+                "uniform vec3 textColor;\n" + // 通常のvec3でOK
                 "void main() {\n" +
-                "   FragColor = vec4(color, 1.0);\n" +
+                "   FragColor = vec4(textColor, 1.0);\n" +
                 "}";
 
         int vs = glCreateShader(GL_VERTEX_SHADER);
@@ -94,41 +97,41 @@ public class Renderer {
         glUseProgram(uiShaderProgram);
         glBindVertexArray(uiVao);
 
-        Matrix4f ortho = new Matrix4f().ortho2D(0, screenWidth, screenHeight, 0);
+        Matrix4d ortho = new Matrix4d().ortho2D(0, screenWidth, screenHeight, 0);
         int projLoc = glGetUniformLocation(uiShaderProgram, "projection");
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
-            FloatBuffer fb = stack.mallocFloat(16);
+            DoubleBuffer fb = stack.mallocDouble(16);
             ortho.get(fb);
-            glUniformMatrix4fv(projLoc, false, fb);
+            glUniformMatrix4dv(projLoc, false, fb);
         }
 
-        glUniform2f(glGetUniformLocation(uiShaderProgram, "position"), button.getX(), button.getY());
-        glUniform2f(glGetUniformLocation(uiShaderProgram, "scale"), button.getWidth(), button.getHeight());
+        glUniform2d(glGetUniformLocation(uiShaderProgram, "position"), button.getX(), button.getY());
+        glUniform2d(glGetUniformLocation(uiShaderProgram, "scale"), button.getWidth(), button.getHeight());
 
+        int colorLoc = glGetUniformLocation(uiShaderProgram, "textColor");
         if (isHovered) {
-            glUniform3f(glGetUniformLocation(uiShaderProgram, "color"), 0.4f, 0.4f, 0.4f);
+            glUniform3f(colorLoc, 0.4f, 0.4f, 0.4f);
         } else {
-            glUniform3f(glGetUniformLocation(uiShaderProgram, "color"), 0.2f, 0.2f, 0.2f);
+            glUniform3f(colorLoc, 0.2f, 0.2f, 0.2f);
         }
 
-        // 深度テストとカリングを無効化して、確実に2Dを描画する
         glDisable(GL_DEPTH_TEST);
-        glDisable(GL_CULL_FACE); // ←ここを追加！
+        glDisable(GL_CULL_FACE);
 
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
-        glEnable(GL_CULL_FACE);  // ←元に戻す
+        glEnable(GL_CULL_FACE);
         glEnable(GL_DEPTH_TEST);
     }
 
     private void setupBuffersAndShaders() {
-        float[] topColor   = {0.3f, 0.75f, 0.3f};
-        float[] sideColor  = {0.55f, 0.35f, 0.15f};
-        float[] bottomColor = {0.4f, 0.25f, 0.1f};
+        double[] topColor    = {0.3d, 0.75d, 0.3d};
+        double[] sideColor   = {0.55d, 0.35d, 0.15d};
+        double[] bottomColor = {0.4d, 0.25d, 0.1d};
 
-        float size = 0.5f;
-        float[] vertices = {
+        double size = 0.5d;
+        double[] vertices = {
                 -size, -size,  size,  sideColor[0], sideColor[1], sideColor[2],
                 size, -size,  size,  sideColor[0], sideColor[1], sideColor[2],
                 size,  size,  size,  sideColor[0], sideColor[1], sideColor[2],
@@ -174,27 +177,27 @@ public class Renderer {
 
         vao = glGenVertexArrays();
         glBindVertexArray(vao);
-        int vbo = glGenBuffers();
+        vbo = glGenBuffers(); // ← フィールドに代入
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
         glBufferData(GL_ARRAY_BUFFER, vertices, GL_STATIC_DRAW);
 
-        int stride = 6 * Float.BYTES;
-        glVertexAttribPointer(0, 3, GL_FLOAT, false, stride, 0);
+        int stride = 6 * Double.BYTES; // Long.BYTES から Double.BYTES に修正
+        glVertexAttribPointer(0, 3, GL_DOUBLE, false, stride, 0);
         glEnableVertexAttribArray(0);
-        glVertexAttribPointer(1, 3, GL_FLOAT, false, stride, 3 * Float.BYTES);
+        glVertexAttribPointer(1, 3, GL_DOUBLE, false, stride, 3 * Double.BYTES);
         glEnableVertexAttribArray(1);
 
-        String vsSource = "#version 330 core\n" +
-                "layout (location = 0) in vec3 aPos;\n" +
-                "layout (location = 1) in vec3 aColor;\n" +
-                "uniform mat4 mvp;\n" +
+        String vsSource = "#version 460 core\n" +
+                "layout (location = 0) in dvec3 aPos;\n" +
+                "layout (location = 1) in dvec3 aColor;\n" +
+                "uniform dmat4 mvp;\n" +
                 "out vec3 ourColor;\n" +
                 "void main() {\n" +
-                "   gl_Position = mvp * vec4(aPos, 1.0);\n" +
-                "   ourColor = aColor;\n" +
+                "   gl_Position = vec4(mvp * dvec4(aPos, 1.0));\n" +
+                "   ourColor = vec3(aColor);\n" +
                 "}";
 
-        String fsSource = "#version 330 core\n" +
+        String fsSource = "#version 460 core\n" +
                 "in vec3 ourColor;\n" +
                 "out vec4 FragColor;\n" +
                 "void main() {\n" +
@@ -216,28 +219,29 @@ public class Renderer {
         glDeleteShader(fs);
     }
 
-    public void render(World world, Camera camera, Matrix4f projection) {
+    public void render(World world, Camera camera, Matrix4d projection) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         glUseProgram(shaderProgram);
         glBindVertexArray(vao);
 
-        Matrix4f view = camera.getViewMatrix();
-        Matrix4f mvp = new Matrix4f();
-        Matrix4f model = new Matrix4f();
+        Matrix4d view = camera.getViewMatrix();
+        Matrix4d pv = new Matrix4d();
+        projection.mul(view, pv); // ← Projection と View の掛け算はループの外で1回だけ計算！
+
+        Matrix4d mvp = new Matrix4d();
+        Matrix4d model = new Matrix4d();
+        int mvpLocation = glGetUniformLocation(shaderProgram, "mvp");
 
         for (int x = 0; x < World.SIZE_X; x++) {
             for (int y = 0; y < World.SIZE_Y; y++) {
                 for (int z = 0; z < World.SIZE_Z; z++) {
                     if (world.getBlock(x, y, z) > 0) {
                         model.identity().translation(x, y, z);
-
-                        projection.mul(view, mvp);
-                        mvp.mul(model);
+                        pv.mul(model, mvp); // 共通のPV行列にモデル行列を掛ける
 
                         mvp.get(matrixBuffer);
-                        int mvpLocation = glGetUniformLocation(shaderProgram, "mvp");
-                        glUniformMatrix4fv(mvpLocation, false, matrixBuffer);
+                        glUniformMatrix4dv(mvpLocation, false, matrixBuffer);
 
                         glDrawArrays(GL_TRIANGLES, 0, 36);
                     }
@@ -249,8 +253,8 @@ public class Renderer {
     public void cleanup() {
         glDeleteProgram(shaderProgram);
         glDeleteVertexArrays(vao);
+        glDeleteBuffers(vbo);
 
-        // UI用のリソース解放を追加
         glDeleteProgram(uiShaderProgram);
         glDeleteVertexArrays(uiVao);
         glDeleteBuffers(uiVbo);

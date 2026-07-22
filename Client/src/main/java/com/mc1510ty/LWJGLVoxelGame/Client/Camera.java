@@ -15,19 +15,19 @@
 //        along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package com.mc1510ty.LWJGLVoxelGame.Client;
 
-import org.joml.Matrix4f;
-import org.joml.Vector3f;
+import org.joml.Matrix4d;
+import org.joml.Vector3d;
 import static org.lwjgl.glfw.GLFW.*;
 
 public class Camera {
-    public final Vector3f pos = new Vector3f(8.0f, 4.0f, 8.0f);
-    public final Vector3f front = new Vector3f(0.0f, 0.0f, -1.0f);
-    public final Vector3f up = new Vector3f(0.0f, 1.0f, 0.0f);
+    public final Vector3d pos = new Vector3d(8.0f, 4.0f, 8.0f);
+    public final Vector3d front = new Vector3d(0.0f, 0.0f, -1.0f);
+    public final Vector3d up = new Vector3d(0.0f, 1.0f, 0.0f);
 
-    private float yaw = -90.0f;
-    private float pitch = -20.0f;
+    private double yaw = -90.0f;
+    private double pitch = -20.0f;
 
-    private float velocityY = 0.0f;
+    private double velocityY = 0.0f;
     private boolean isGrounded = false;
 
     public Camera() {
@@ -35,8 +35,8 @@ public class Camera {
     }
 
     // マウス入力で視点を動かす
-    public void processMouseMovement(float xoffset, float yoffset) {
-        float sensitivity = 0.1f;
+    public void processMouseMovement(double xoffset, double yoffset) {
+        double sensitivity = 0.1f;
         yaw += xoffset * sensitivity;
         pitch += yoffset * sensitivity;
 
@@ -47,27 +47,27 @@ public class Camera {
     }
 
     private void updateVectors() {
-        Vector3f newFront = new Vector3f();
-        newFront.x = (float) (Math.cos(Math.toRadians(yaw)) * Math.cos(Math.toRadians(pitch)));
-        newFront.y = (float) Math.sin(Math.toRadians(pitch));
-        newFront.z = (float) (Math.sin(Math.toRadians(yaw)) * Math.cos(Math.toRadians(pitch)));
+        Vector3d newFront = new Vector3d();
+        newFront.x = (Math.cos(Math.toRadians(yaw)) * Math.cos(Math.toRadians(pitch)));
+        newFront.y = Math.sin(Math.toRadians(pitch));
+        newFront.z = (Math.sin(Math.toRadians(yaw)) * Math.cos(Math.toRadians(pitch)));
         front.set(newFront).normalize();
     }
 
     // キーボード入力と物理演算（重力・当たり判定）
-    public void processInput(boolean[] keys, float deltaTime, World world) {
-        float speed = 4.5f * deltaTime;
-        Vector3f moveDir = new Vector3f();
+    public void processInput(boolean[] keys, double deltaTime, World world) {
+        double speed = 4.5f * deltaTime;
+        Vector3d moveDir = new Vector3d();
 
         if (keys[GLFW_KEY_W]) moveDir.add(front.x, 0.0f, front.z);
         if (keys[GLFW_KEY_S]) moveDir.sub(front.x, 0.0f, front.z);
         if (keys[GLFW_KEY_A]) {
-            Vector3f side = new Vector3f();
+            Vector3d side = new Vector3d();
             front.cross(up, side).normalize();
             moveDir.sub(side);
         }
         if (keys[GLFW_KEY_D]) {
-            Vector3f side = new Vector3f();
+            Vector3d side = new Vector3d();
             front.cross(up, side).normalize();
             moveDir.add(side);
         }
@@ -87,14 +87,14 @@ public class Camera {
         pos.y += velocityY * deltaTime;
 
         // 床との当たり判定
-        int blockX = Math.round(pos.x);
-        int blockZ = Math.round(pos.z);
-        float eyeHeight = 1.5f;
-        float groundLevel = 1.0f + eyeHeight;
+        int blockX = (int) Math.round(pos.x);
+        int blockZ = (int) Math.round(pos.z);
+        double eyeHeight = 1.5f;
+        double groundLevel = 1.0f + eyeHeight;
 
         for (int y = World.SIZE_Y - 1; y >= 0; y--) {
             if (world.getBlock(blockX, y, blockZ) > 0) {
-                float surfaceY = (y + 0.5f) + eyeHeight;
+                double surfaceY = (y + 0.5f) + eyeHeight;
                 if (pos.y <= surfaceY && pos.y >= surfaceY - 1.0f && velocityY <= 0) {
                     groundLevel = surfaceY;
                     isGrounded = true;
@@ -112,7 +112,7 @@ public class Camera {
     }
 
     // 描画用のView行列を取得
-    public Matrix4f getViewMatrix() {
-        return new Matrix4f().lookAt(pos, new Vector3f(pos).add(front), up);
+    public Matrix4d getViewMatrix() {
+        return new Matrix4d().lookAt(pos, new Vector3d(pos).add(front), up);
     }
 }

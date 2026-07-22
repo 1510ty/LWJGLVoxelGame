@@ -13,10 +13,10 @@
 //
 //        You should have received a copy of the GNU General Public License
 //        along with this program.  If not, see <https://www.gnu.org/licenses/>.
-package com.mc1510ty.LWJGLVoxelGame.Client;
 
-import org.joml.Matrix4f;
-import org.joml.Vector3f;
+package com.mc1510ty.LWJGLVoxelGame.Client;
+import org.joml.Matrix4d;
+import org.joml.Vector3d;
 import org.lwjgl.stb.STBTTAlignedQuad;
 import org.lwjgl.stb.STBTTBakedChar;
 import org.lwjgl.system.MemoryStack;
@@ -25,11 +25,13 @@ import org.lwjgl.system.MemoryUtil;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
-import java.nio.FloatBuffer;
+import java.nio.DoubleBuffer;
 
+import static org.lwjgl.opengl.ARBGPUShaderFP64.glUniformMatrix4dv;
 import static org.lwjgl.opengl.GL11.*;
 import static org.lwjgl.opengl.GL20.*;
 import static org.lwjgl.opengl.GL30.*;
+import static org.lwjgl.opengl.GL40.glUniform3d;
 import static org.lwjgl.stb.STBTruetype.*;
 
 public class FontRenderer {
@@ -86,24 +88,24 @@ public class FontRenderer {
         glBindVertexArray(vao);
         vbo = glGenBuffers();
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
-        glBufferData(GL_ARRAY_BUFFER, 4 * 4 * 6 * Float.BYTES, GL_DYNAMIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, 4 * 4 * 6 * Double.BYTES, GL_DYNAMIC_DRAW);
 
-        glVertexAttribPointer(0, 2, GL_FLOAT, false, 4 * Float.BYTES, 0);
+        glVertexAttribPointer(0, 2, GL_DOUBLE, false, 4 * Double.BYTES, 0);
         glEnableVertexAttribArray(0);
-        glVertexAttribPointer(1, 2, GL_FLOAT, false, 4 * Float.BYTES, 2 * Float.BYTES);
+        glVertexAttribPointer(1, 2, GL_DOUBLE, false, 4 * Double.BYTES, 2 * Double.BYTES);
         glEnableVertexAttribArray(1);
 
-        String vs = "#version 330 core\n" +
-                "layout (location = 0) in vec2 aPos;\n" +
-                "layout (location = 1) in vec2 aTexCoord;\n" +
-                "uniform mat4 projection;\n" +
+        String vs = "#version 460 core\n" +
+                "layout (location = 0) in dvec2 aPos;\n" +
+                "layout (location = 1) in dvec2 aTexCoord;\n" +
+                "uniform dmat4 projection;\n" +
                 "out vec2 TexCoord;\n" +
                 "void main() {\n" +
-                "   gl_Position = projection * vec4(aPos, 0.0, 1.0);\n" +
-                "   TexCoord = aTexCoord;\n" +
+                "   gl_Position = vec4(projection * dvec4(aPos, 0.0, 1.0));\n" +
+                "   TexCoord = vec2(aTexCoord);\n" +
                 "}";
 
-        String fs = "#version 330 core\n" +
+        String fs = "#version 460 core\n" +
                 "in vec2 TexCoord;\n" +
                 "out vec4 FragColor;\n" +
                 "uniform sampler2D tex;\n" +
@@ -129,28 +131,30 @@ public class FontRenderer {
         glDeleteShader(fsId);
     }
 
-    public void drawText(String text, float x, float y, float scale, int screenWidth, int screenHeight, Vector3f color) {
+    public void drawText(String text, float x, float y, double scale, int screenWidth, int screenHeight, Vector3d color) {
         glUseProgram(shaderProgram);
         glBindVertexArray(vao);
         glBindTexture(GL_TEXTURE_2D, fontTexId);
 
-        Matrix4f ortho = new Matrix4f().ortho2D(0, screenWidth, screenHeight, 0);
+        Matrix4d ortho = new Matrix4d().ortho2D(0, screenWidth, screenHeight, 0);
         int projLoc = glGetUniformLocation(shaderProgram, "projection");
         try (MemoryStack stack = MemoryStack.stackPush()) {
-            FloatBuffer fb = stack.mallocFloat(16);
+            DoubleBuffer fb = stack.mallocDouble(16);
             ortho.get(fb);
-            glUniformMatrix4fv(projLoc, false, fb);
+            glUniformMatrix4dv(projLoc, false, fb);
         }
 
-        glUniform3f(glGetUniformLocation(shaderProgram, "textColor"), color.x, color.y, color.z);
+        glUniform3d(glGetUniformLocation(shaderProgram, "textColor"), color.x, color.y, color.z);
 
         glDisable(GL_DEPTH_TEST);
         glDisable(GL_CULL_FACE);
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
             STBTTAlignedQuad q = STBTTAlignedQuad.malloc(stack);
-            FloatBuffer verticesBuffer = stack.mallocFloat(text.length() * 24); // 1文字あたり6頂点×4float(x,y,s,t)
+            DoubleBuffer verticesBuffer = stack.mallocDouble(text.length() * 24); // 1文字あたり6頂点×4double(x,y,s,t)
 
+            //ここはfloatじゃないといけない
+            //下のstbtt_みたいなやつがfloatしか受け付けない
             float[] xpos = { x };
             float[] ypos = { y + 20.0f }; // ベースライン位置の調整
 
@@ -161,14 +165,14 @@ public class FontRenderer {
 
                 stbtt_GetBakedQuad(cdata, BITMAP_W, BITMAP_H, c - FIRST_CHAR, xpos, ypos, q, true);
 
-                float x0 = q.x0();
-                float y0 = q.y0();
-                float x1 = q.x1();
-                float y1 = q.y1();
-                float s0 = q.s0();
-                float t0 = q.t0();
-                float s1 = q.s1();
-                float t1 = q.t1();
+                double x0 = q.x0();
+                double y0 = q.y0();
+                double x1 = q.x1();
+                double y1 = q.y1();
+                double s0 = q.s0();
+                double t0 = q.t0();
+                double s1 = q.s1();
+                double t1 = q.t1();
 
                 // 三角形1 (左上、左下、右下)
                 verticesBuffer.put(x0).put(y0).put(s0).put(t0);

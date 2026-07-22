@@ -15,8 +15,8 @@
 //        along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package com.mc1510ty.LWJGLVoxelGame.Client;
 
-import org.joml.Matrix4f;
-import org.joml.Vector3f; // 追加
+import org.joml.Matrix4d;
+import org.joml.Vector3d;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.glfw.GLFWVidMode;
 import org.lwjgl.opengl.GL;
@@ -94,8 +94,8 @@ public class ClientLauncher {
         glfwDefaultWindowHints();
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
         window = glfwCreateWindow(WIDTH, HEIGHT, "Voxel Game Client", NULL, NULL);
@@ -120,8 +120,8 @@ public class ClientLauncher {
                     lastY = ypos;
                     firstMouse = false;
                 }
-                float xoffset = (float) (xpos - lastX);
-                float yoffset = (float) (lastY - ypos);
+                double xoffset = (xpos - lastX);
+                double yoffset = (lastY - ypos);
                 lastX = xpos;
                 lastY = ypos;
 
@@ -286,12 +286,12 @@ public class ClientLauncher {
     }
 
     private void loop() {
-        Matrix4f projection = new Matrix4f().perspective((float) Math.toRadians(45.0f), (float)WIDTH / HEIGHT, 0.1f, 100.0f);
+        Matrix4d projection = new Matrix4d().perspective(Math.toRadians(45.0f), (double) WIDTH / HEIGHT, 0.1f, 100.0f);
         double lastFrameTime = glfwGetTime();
 
         while (!glfwWindowShouldClose(window)) {
             double currentFrameTime = glfwGetTime();
-            float deltaTime = (float) (currentFrameTime - lastFrameTime);
+            double deltaTime = (currentFrameTime - lastFrameTime);
             lastFrameTime = currentFrameTime;
 
             if (currentState == GameState.MENU) {
@@ -318,13 +318,13 @@ public class ClientLauncher {
                 boolean isSingleHovered = singlePlayerButton.isHovered(mx[0], my[0]);
                 renderer.renderButton(singlePlayerButton, isSingleHovered, WIDTH, HEIGHT);
                 // ボタンの上に文字を描画（白文字: RGB(1,1,1)）
-                fontRenderer.drawText("SinglePlayer", 470.0f, 272.0f, 1.0f, WIDTH, HEIGHT, new Vector3f(1.0f, 1.0f, 1.0f));
+                fontRenderer.drawText("SinglePlayer", 470.0f, 272.0f, 1.0f, WIDTH, HEIGHT, new Vector3d(1.0f, 1.0f, 1.0f));
 
                 // マルチプレイボタンの描画
                 boolean isMultiHovered = multiPlayerButton.isHovered(mx[0], my[0]);
                 renderer.renderButton(multiPlayerButton, isMultiHovered, WIDTH, HEIGHT);
                 // ボタンの上に文字を描画
-                fontRenderer.drawText("MultiPlayer", 485.0f, 342.0f, 1.0f, WIDTH, HEIGHT, new Vector3f(1.0f, 1.0f, 1.0f));
+                fontRenderer.drawText("MultiPlayer", 485.0f, 342.0f, 1.0f, WIDTH, HEIGHT, new Vector3d(1.0f, 1.0f, 1.0f));
 
             } else if (currentState == GameState.PLAYING) {
                 camera.processInput(keys, deltaTime, world);
@@ -344,10 +344,7 @@ public class ClientLauncher {
             // 1. サーバーへ終了パケット（-1）を送信してセーブさせる
             if (serverOut != null) {
                 try {
-                    serverOut.writeInt(0);  // ダミーの x
-                    serverOut.writeInt(0);  // ダミーの y
-                    serverOut.writeInt(0);  // ダミーの z
-                    serverOut.writeInt(-1); // 終了を示す ID
+                    serverOut.writeInt(-1); // パケットID -1: 終了シグナル
                     serverOut.flush();
                 } catch (IOException ignored) {}
             }
@@ -388,24 +385,24 @@ public class ClientLauncher {
         }
     }
 
-    private RaycastResult raycast(float maxDistance) {
+    private RaycastResult raycast(double maxDistance) {
         RaycastResult result = new RaycastResult();
         if (world == null) return result;
 
-        Vector3f rayPos = new Vector3f(camera.pos);
-        Vector3f rayDir = new Vector3f(camera.front);
+        Vector3d rayPos = new Vector3d(camera.pos);
+        Vector3d rayDir = new Vector3d(camera.front);
 
-        float step = 0.05f;
-        int lastX = Math.round(rayPos.x);
-        int lastY = Math.round(rayPos.y);
-        int lastZ = Math.round(rayPos.z);
+        double step = 0.05f;
+        int lastX = (int) Math.round(rayPos.x);
+        int lastY = (int) Math.round(rayPos.y);
+        int lastZ = (int) Math.round(rayPos.z);
 
-        for (float d = 0; d < maxDistance; d += step) {
-            rayPos.add(new Vector3f(rayDir).mul(step));
+        for (double d = 0; d < maxDistance; d += step) {
+            rayPos.add(new Vector3d(rayDir).mul(step));
 
-            int bx = Math.round(rayPos.x);
-            int by = Math.round(rayPos.y);
-            int bz = Math.round(rayPos.z);
+            int bx = (int) Math.round(rayPos.x);
+            int by = (int) Math.round(rayPos.y);
+            int bz = (int) Math.round(rayPos.z);
 
             if (bx != lastX || by != lastY || bz != lastZ) {
                 if (world.getBlock(bx, by, bz) > 0) {
@@ -429,6 +426,7 @@ public class ClientLauncher {
     private void sendBlockChange(int x, int y, int z, int id) {
         if (serverOut != null) {
             try {
+                serverOut.writeInt(1); // パケットID 1: ブロック変更
                 serverOut.writeInt(x);
                 serverOut.writeInt(y);
                 serverOut.writeInt(z);

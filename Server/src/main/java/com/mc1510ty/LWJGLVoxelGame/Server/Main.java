@@ -92,20 +92,29 @@ public class Main {
 
                         // 3. 接続を維持しつつ、クライアントからの変更通知を待ち受ける
                         while (!clientSocket.isClosed()) {
-                            int x = in.readInt();
-                            int y = in.readInt();
-                            int z = in.readInt();
-                            int id = in.readInt();
+                            int packetType = in.readInt(); // パケットの種類を読み取る
 
-                            if (id == -1) {
+                            if (packetType == -1) {
+                                // 終了シグナル
                                 System.out.println("Shutdown request received from client.");
-                                System.exit(0); // これにより ShutdownHook が確実に呼ばれる！
-                            }
+                                System.exit(0);
+                            } else if (packetType == 1) {
+                                // ブロック変更のパケット
+                                int x = in.readInt();
+                                int y = in.readInt();
+                                int z = in.readInt();
+                                int id = in.readInt();
 
-                            // サーバー側のメモリ上のワールドデータを更新
-                            if (x >= 0 && x < WORLD_SIZE_X && y >= 0 && y < WORLD_SIZE_Y && z >= 0 && z < WORLD_SIZE_Z) {
-                                worldData[x][y][z] = id;
-                                System.out.println("Block updated at (" + x + ", " + y + ", " + z + ") to ID: " + id);
+                                if (x >= 0 && x < WORLD_SIZE_X && y >= 0 && y < WORLD_SIZE_Y && z >= 0 && z < WORLD_SIZE_Z) {
+                                    worldData[x][y][z] = id;
+                                    System.out.println("Block updated at (" + x + ", " + y + ", " + z + ") to ID: " + id);
+                                }
+                            } else if (packetType == 2) {
+                                // プレイヤーの位置情報パケット（これから実装！）
+                                // float x = in.readFloat();
+                                // float y = in.readFloat();
+                                // float z = in.readFloat();
+                                // ...
                             }
                         }
 
