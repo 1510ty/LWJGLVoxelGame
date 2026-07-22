@@ -24,8 +24,9 @@ public class ClientLauncher {
         glfwDestroyWindow(window);
 
         glfwTerminate();
-        if (glfwSetErrorCallback(null) != null) {
-            glfwSetErrorCallback(null).free();
+        org.lwjgl.glfw.GLFWErrorCallback callback = glfwSetErrorCallback(null);
+        if (callback != null) {
+            callback.free();
         }
     }
 
