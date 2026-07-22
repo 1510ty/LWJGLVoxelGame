@@ -15,10 +15,15 @@
 //        along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package com.mc1510ty.LWJGLVoxelGame.Server;
 
+import org.yaml.snakeyaml.Yaml;
+
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -35,8 +40,59 @@ public class Main {
     public static void main(String[] args) {
         System.out.println("Starting LWJGLVoxelGame Server...");
 
-        String saveFilePath = (args.length > 0) ? args[0] : "world.dat";
-        File worldFile = new File(saveFilePath);
+        String worldFilePath = "world.dat"; // デフォルト
+        boolean isIntegrated = false;
+
+        // 引数の解析
+        for (String arg : args) {
+            if (arg.equals("integrated")) {
+                isIntegrated = true;
+            } else if (!arg.startsWith("-")) {
+                // オプション以外の最初の引数をワールドファイルのパスとして扱う
+                worldFilePath = arg;
+            }
+        }
+
+        System.out.println("Server mode: " + (isIntegrated ? "Integrated (Singleplayer)" : "Standalone (Multiplayer)"));
+
+
+        File configFile = new File("serversettings.yaml");
+        Yaml yaml = new Yaml();
+        int serverPort = 35565; // デフォルトのポート
+
+        if (!isIntegrated) {
+            // スタンドアロンモードの場合のみ設定ファイルを扱う
+            if (!configFile.exists()) {
+                try (InputStream in = Main.class.getResourceAsStream("/serverproperties.yaml")) {
+                    if (in != null) {
+                        Files.copy(in, configFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                        System.out.println("serverproperties.yaml をリソースから自動配置しました。");
+                    } else {
+                        System.out.println("リソース内に serverproperties.yaml が見つかりませんでした。");
+                    }
+                } catch (IOException e) {
+                    System.out.println("serverproperties.yaml の配置に失敗しました。");
+                    e.printStackTrace();
+                }
+            }
+        } else {
+            System.out.println("Integratedモードで起動中のため、設定ファイルは使用せずデフォルト設定で動作します。");
+        }
+
+        try (InputStream in = Files.newInputStream(configFile.toPath())) {
+            Map<String, Object> data = yaml.load(in);
+
+            if (data != null && data.containsKey("server-port")) {
+                // Number 型にキャストしてから intValue() を呼ぶと安全です
+                serverPort = ((Number) data.get("server-port")).intValue();
+            }
+        } catch (Exception e) {
+            System.out.println("設定ファイルの読み込みに失敗しました。デフォルト値を使用します。");
+            e.printStackTrace();
+        }
+
+
+        File worldFile = new File(worldFilePath);
 
         int[][][] worldData = new int[WORLD_SIZE_X][WORLD_SIZE_Y][WORLD_SIZE_Z];
 
@@ -67,8 +123,8 @@ public class Main {
             saveWorld(worldFile, worldData);
         }));
 
-        try (ServerSocket serverSocket = new ServerSocket(25565)) {
-            System.out.println("Server started on port 25565. Waiting for client...");
+        try (ServerSocket serverSocket = new ServerSocket(serverPort)) {
+            System.out.println("Server started on port " + serverPort + ". Waiting for client...");
 
             while (true) {
                 Socket clientSocket = serverSocket.accept();

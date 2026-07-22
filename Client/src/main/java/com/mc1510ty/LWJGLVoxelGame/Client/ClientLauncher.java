@@ -42,7 +42,7 @@ public class ClientLauncher {
     }
 
     private GameState currentState = GameState.MENU;
-    private StringBuilder addressInput = new StringBuilder("localhost:25565");
+    private StringBuilder addressInput = new StringBuilder("localhost:35565");
 
     private long window;
 
@@ -138,7 +138,7 @@ public class ClientLauncher {
             if (currentState == GameState.MENU && button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
                 if (singlePlayerButton != null && singlePlayerButton.isHovered(mouseX[0], mouseY[0])) {
                     extractAndStartServer();
-                    world = fetchWorldFromServer("localhost", 25565);
+                    world = fetchWorldFromServer("localhost", 35565);
                     currentState = GameState.PLAYING;
                     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
                     firstMouse = true;
@@ -247,7 +247,8 @@ public class ClientLauncher {
                     javaPath,
                     "-jar",
                     serverFile.getAbsolutePath(),
-                    worldFilePath
+                    worldFilePath,
+                    "integrated" // ★ ここにオプションを追加！
             );
 
             pb.inheritIO();
@@ -265,7 +266,7 @@ public class ClientLauncher {
     private void connectToServerWithInput() {
         String inputStr = addressInput.toString().trim();
         String host = "localhost";
-        int port = 25565;
+        int port = 35565;
 
         if (inputStr.contains(":")) {
             String[] parts = inputStr.split(":", 2);
@@ -273,7 +274,7 @@ public class ClientLauncher {
             try {
                 port = Integer.parseInt(parts[1]);
             } catch (NumberFormatException e) {
-                System.out.println("ポート番号の形式が正しくないため、デフォルトの 25565 を使用します。");
+                System.out.println("ポート番号の形式が正しくないため、デフォルトの 35565 を使用します。");
             }
         } else if (!inputStr.isEmpty()) {
             host = inputStr;

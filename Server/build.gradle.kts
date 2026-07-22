@@ -24,6 +24,10 @@ repositories {
     mavenCentral()
 }
 
+dependencies {
+    implementation("org.yaml:snakeyaml:2.2")
+}
+
 tasks{
     shadowJar {
         archiveFileName.set("LWJGLVoxelGame-Server-${project.version}.jar")
