@@ -25,21 +25,28 @@ import java.nio.IntBuffer;
 import static org.lwjgl.glfw.Callbacks.glfwFreeCallbacks;
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL11.*;
+import static org.lwjgl.opengl.GL20.*;
+import static org.lwjgl.opengl.GL30.*;
 import static org.lwjgl.system.MemoryUtil.NULL;
 
 public class ClientLauncher {
     private long window;
+    private int shaderProgram;
+    private int vao;
 
     public void run() {
         init();
         loop();
 
-        // 終了時のクリーンアップ
+        // クリーンアップ
+        glDeleteProgram(shaderProgram);
+        glDeleteVertexArrays(vao);
+
         glfwFreeCallbacks(window);
         glfwDestroyWindow(window);
 
         glfwTerminate();
-        org.lwjgl.glfw.GLFWErrorCallback callback = glfwSetErrorCallback(null);
+        GLFWErrorCallback callback = glfwSetErrorCallback(null);
         if (callback != null) {
             callback.free();
         }
@@ -57,6 +64,10 @@ public class ClientLauncher {
         glfwDefaultWindowHints();
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+        // OpenGL 3.3 Core Profileを指定
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
         // ウィンドウの作成 (幅 1280, 高さ 720)
         window = glfwCreateWindow(1280, 720, "Voxel Game Client", NULL, NULL);
@@ -87,8 +98,68 @@ public class ClientLauncher {
         // ウィンドウを表示
         glfwShowWindow(window);
 
-        // OpenGLの機能をバインド（これがないとOpenGLの関数が使えません）
+        // OpenGLの機能をバインド
         GL.createCapabilities();
+
+        // --- ここから描画用の初期化（シェーダーと頂点データ） ---
+
+        // 1. 頂点データ（三角形の座標と色）
+        float[] vertices = {
+                // 座標X, Y, Z       // 色 R, G, B
+                0.0f,  0.5f, 0.0f,   1.0f, 0.0f, 0.0f, // 上 (赤)
+                -0.5f, -0.5f, 0.0f,   0.0f, 1.0f, 0.0f, // 左下 (緑)
+                0.5f, -0.5f, 0.0f,   0.0f, 0.0f, 1.0f  // 右下 (青)
+        };
+
+        // 2. VAO と VBO の作成とバインド
+        vao = glGenVertexArrays();
+        glBindVertexArray(vao);
+
+        int vbo = glGenBuffers();
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBufferData(GL_ARRAY_BUFFER, vertices, GL_STATIC_DRAW);
+
+        // 3. 頂点属性の設定（位置: 3float, 色: 3float）
+        int stride = 6 * Float.BYTES;
+        // 位置属性
+        glVertexAttribPointer(0, 3, GL_FLOAT, false, stride, 0);
+        glEnableVertexAttribArray(0);
+        // 色属性
+        glVertexAttribPointer(1, 3, GL_FLOAT, false, stride, 3 * Float.BYTES);
+        glEnableVertexAttribArray(1);
+
+        // 4. シェーダーのコンパイル
+        String vertexShaderSource = "#version 330 core\n" +
+                "layout (location = 0) in vec3 aPos;\n" +
+                "layout (location = 1) in vec3 aColor;\n" +
+                "out vec3 ourColor;\n" +
+                "void main() {\n" +
+                "   gl_Position = vec4(aPos, 1.0);\n" +
+                "   ourColor = aColor;\n" +
+                "}";
+
+        String fragmentShaderSource = "#version 330 core\n" +
+                "in vec3 ourColor;\n" +
+                "out vec4 FragColor;\n" +
+                "void main() {\n" +
+                "   FragColor = vec4(ourColor, 1.0);\n" +
+                "}";
+
+        int vertexShader = glCreateShader(GL_VERTEX_SHADER);
+        glShaderSource(vertexShader, vertexShaderSource);
+        glCompileShader(vertexShader);
+
+        int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+        glShaderSource(fragmentShader, fragmentShaderSource);
+        glCompileShader(fragmentShader);
+
+        shaderProgram = glCreateProgram();
+        glAttachShader(shaderProgram, vertexShader);
+        glAttachShader(shaderProgram, fragmentShader);
+        glLinkProgram(shaderProgram);
+
+        glDeleteShader(vertexShader);
+        glDeleteShader(fragmentShader);
     }
 
     private void loop() {
@@ -99,10 +170,14 @@ public class ClientLauncher {
             // カラーバッファと深度バッファをクリア
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-            // ここに描画処理（チャンクの描画など）が入っていきます
+            // --- ここから描画処理 ---
+            glUseProgram(shaderProgram);
+            glBindVertexArray(vao);
+            glDrawArrays(GL_TRIANGLES, 0, 3);
+            // ------------------------
 
             glfwSwapBuffers(window); // 画面をスワップ
-            glfwPollEvents();        // キーボードやマウスなどのイベントを処理
+            glfwPollEvents();        // イベントを処理
         }
     }
 }
