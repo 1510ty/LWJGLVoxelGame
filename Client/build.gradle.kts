@@ -22,34 +22,31 @@ val lwjglVersion = "3.4.3-SNAPSHOT"
 val jomlVersion = "1.10.9"
 val `joml-primitivesVersion` = "1.10.0"
 
-val lwjglNatives = Pair(
-    System.getProperty("os.name")!!,
-    System.getProperty("os.arch")!!
-).let { (name, arch) ->
-    when {
-        "FreeBSD".equals(name)                                    ->
-            "natives-freebsd"
-        arrayOf("Linux", "SunOS", "Unit").any { name.startsWith(it) } ->
-            if (arrayOf("arm", "aarch64").any { arch.startsWith(it) })
-                "natives-linux${if (arch.contains("64") || arch.startsWith("armv8")) "-arm64" else "-arm32"}"
-            else if (arch.startsWith("ppc"))
-                "natives-linux-ppc64le"
-            else if (arch.startsWith("riscv"))
-                "natives-linux-riscv64"
-            else
-                "natives-linux"
-        arrayOf("Mac OS X", "Darwin").any { name.startsWith(it) }     ->
-            "natives-macos${if (arch.startsWith("aarch64")) "-arm64" else ""}"
-        arrayOf("Windows").any { name.startsWith(it) }                ->
-            if (arch.contains("64"))
-                "natives-windows${if (arch.startsWith("aarch64")) "-arm64" else ""}"
-            else
-                "natives-windows-x86"
-        else                                                                            ->
-            throw Error("Unrecognized or unsupported platform. Please set \"lwjglNatives\" manually")
-    }
-}
+val platforms = listOf(
+    "natives-windows",
+    "natives-windows-arm64",
+    "natives-windows-x86",
+    "natives-linux",
+    "natives-linux-arm64",
+    "natives-linux-arm32",
+    "natives-linux-ppc64le",
+    "natives-linux-riscv64",
+    "natives-macos",
+    "natives-macos-arm64",
+    "natives-freebsd"
+)
 
+val lwjglModules = listOf(
+    "lwjgl", "lwjgl-assimp", "lwjgl-bgfx", "lwjgl-freetype", "lwjgl-glfw",
+    "lwjgl-harfbuzz", "lwjgl-hwloc", "lwjgl-jemalloc", "lwjgl-ktx",
+    "lwjgl-llvm", "lwjgl-lmdb", "lwjgl-lz4", "lwjgl-meshoptimizer",
+    "lwjgl-mimalloc", "lwjgl-msdfgen", "lwjgl-nanovg", "lwjgl-nfd",
+    "lwjgl-nuklear", "lwjgl-openal", "lwjgl-opengl", "lwjgl-opengles",
+    "lwjgl-openxr", "lwjgl-opus", "lwjgl-par", "lwjgl-remotery",
+    "lwjgl-rpmalloc", "lwjgl-sdl", "lwjgl-shaderc", "lwjgl-spng",
+    "lwjgl-spvc", "lwjgl-stb", "lwjgl-tinyexr", "lwjgl-tinyfd",
+    "lwjgl-vma", "lwjgl-vulkan", "lwjgl-xxhash", "lwjgl-yoga", "lwjgl-zstd"
+)
 
 repositories {
     mavenCentral()
@@ -103,44 +100,25 @@ dependencies {
     implementation("org.lwjgl:lwjgl-xxhash")
     implementation("org.lwjgl:lwjgl-yoga")
     implementation("org.lwjgl:lwjgl-zstd")
-    implementation("org.lwjgl:lwjgl::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-assimp::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-bgfx::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-freetype::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-glfw::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-harfbuzz::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-hwloc::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-jemalloc::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-ktx::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-llvm::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-lmdb::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-lz4::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-meshoptimizer::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-mimalloc::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-msdfgen::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-nanovg::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-nfd::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-nuklear::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-openal::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-opengl::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-opengles::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-openxr::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-opus::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-par::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-remotery::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-rpmalloc::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-sdl::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-shaderc::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-spng::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-spvc::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-stb::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-tinyexr::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-tinyfd::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-vma::$lwjglNatives")
-    if (lwjglNatives == "natives-macos" || lwjglNatives == "natives-macos-arm64") implementation("org.lwjgl:lwjgl-vulkan::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-xxhash::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-yoga::$lwjglNatives")
-    implementation("org.lwjgl:lwjgl-zstd::$lwjglNatives")
+
+    platforms.forEach { platform ->
+        lwjglModules.forEach { module ->
+            // 1. lwjgl-vulkan は macOS系 のみにする（もともとの設定を再現）
+            if (module == "lwjgl-vulkan" && platform != "natives-macos" && platform != "natives-macos-arm64") {
+                return@forEach
+            }
+
+            // 2. エラーログで弾かれた存在しない組み合わせを個別にスキップする
+            if (module == "lwjgl-bgfx" && platform == "natives-windows-arm64") return@forEach
+            if (module == "lwjgl-ktx" && platform == "natives-windows-x86") return@forEach
+            if (module == "lwjgl-openxr" && (platform == "natives-macos" || platform == "natives-macos-arm64")) return@forEach
+            if (module == "lwjgl-remotery" && platform == "natives-windows-arm64") return@forEach
+
+            // 問題ない組み合わせだけを安全に適用
+            implementation("org.lwjgl:$module::$platform")
+        }
+    }
+
     implementation("org.joml:joml:$jomlVersion")
     implementation("org.joml:joml-primitives:${`joml-primitivesVersion`}")
 }
