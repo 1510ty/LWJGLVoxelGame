@@ -1,0 +1,43 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v6
+
+      - name: 日本時間に設定
+        run: sudo timedatectl set-timezone Asia/Tokyo
+
+      - name: Java25をセットアップ
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+
+      - name: GitのコミットIDを取得
+        id: git
+        run: echo "GIT_COMMIT=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+      - name: gradlewの実行権限付与
+        run: chmod +x ./gradlew
+
+      - name: ビルド
+        run: ./gradlew shadowJar -PgitCommit=${GIT_COMMIT}
+
+      - name: 現在時刻をJSTで取得
+        run: echo "JST_TIME=$(TZ=Asia/Tokyo date +'%Y%m%d%H%M')" >> $GITHUB_ENV
+
+      - name: 配置
+        uses: actions/upload-artifact@v6
+        with:
+          name: LWJGLVoxelGame-${{ env.JST_TIME }}-${{ env.GIT_COMMIT }}
+          path: Client/build/libs/*.jar | Server/build/libs/*.jar

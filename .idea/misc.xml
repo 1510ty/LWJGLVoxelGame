@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ExternalStorageConfigurationManager" enabled="true" />
+  <component name="KubernetesApiProvider">{}</component>
+  <component name="ProjectInspectionProfilesVisibleTreeState">
+    <entry key="Project Default">
+      <profile-state>
+        <expanded-state>
+          <State>
+            <id>Groovy</id>
+          </State>
+          <State>
+            <id>JUnit</id>
+          </State>
+          <State>
+            <id>Java</id>
+          </State>
+          <State>
+            <id>Java 7Java 言語レベルの移行支援Java</id>
+          </State>
+          <State>
+            <id>Java 相互運用性の問題Kotlin</id>
+          </State>
+          <State>
+            <id>Java 言語レベルの移行支援Java</id>
+          </State>
+          <State>
+            <id>JavaScript と TypeScript</id>
+          </State>
+          <State>
+            <id>Kotlin</id>
+          </State>
+          <State>
+            <id>PostgreSQL</id>
+          </State>
+          <State>
+            <id>TypeScriptJavaScript と TypeScript</id>
+          </State>
+          <State>
+            <id>インポートJava</id>
+          </State>
+          <State>
+            <id>クラス命名規則Java</id>
+          </State>
+          <State>
+            <id>クラス構造Java</id>
+          </State>
+          <State>
+            <id>コードの移行Kotlin</id>
+          </State>
+          <State>
+            <id>コードスタイル問題Java</id>
+          </State>
+          <State>
+            <id>スタイルの問題Kotlin</id>
+          </State>
+          <State>
+            <id>パターン検証</id>
+          </State>
+          <State>
+            <id>パッケージ関連の問題Java</id>
+          </State>
+          <State>
+            <id>パフォーマンスJava</id>
+          </State>
+          <State>
+            <id>プロパティファイル</id>
+          </State>
+          <State>
+            <id>モジュール化関連の問題Java</id>
+          </State>
+          <State>
+            <id>リソース管理Java</id>
+          </State>
+          <State>
+            <id>一般JavaScript と TypeScript</id>
+          </State>
+          <State>
+            <id>代入関連の問題Groovy</id>
+          </State>
+          <State>
+            <id>代入関連の問題Java</id>
+          </State>
+          <State>
+            <id>依存関係の問題Java</id>
+          </State>
+          <State>
+            <id>冗長なコンストラクトKotlin</id>
+          </State>
+          <State>
+            <id>冗長または不要なコード構成Java</id>
+          </State>
+          <State>
+            <id>制御フロー問題Java</id>
+          </State>
+          <State>
+            <id>命名規則Java</id>
+          </State>
+          <State>
+            <id>抽象化関連の問題Java</id>
+          </State>
+          <State>
+            <id>数値関連の問題Java</id>
+          </State>
+          <State>
+            <id>混乱を招く可能性があるコード箇所Groovy</id>
+          </State>
+          <State>
+            <id>潜在的なバグJava</id>
+          </State>
+          <State>
+            <id>潜在的なバグJavaScript と TypeScript</id>
+          </State>
+          <State>
+            <id>潜在的なバグKotlin</id>
+          </State>
+          <State>
+            <id>潜在的に難解なコード構成JavaScript と TypeScript</id>
+          </State>
+          <State>
+            <id>組み込みパフォーマンスJava</id>
+          </State>
+        </expanded-state>
+        <selected-state>
+          <State>
+            <id>ユーザー定義</id>
+          </State>
+        </selected-state>
+      </profile-state>
+    </entry>
+  </component>
+  <component name="ProjectRootManager" version="2" languageLevel="JDK_25" default="true" project-jdk-name="25" project-jdk-type="JavaSDK">
+    <output url="file://$PROJECT_DIR$/out" />
+  </component>
+</project>
