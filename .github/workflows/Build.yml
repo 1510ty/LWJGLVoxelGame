@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # リリース作成・タグプッシュの権限に必要
 
     steps:
       - name: リポジトリをチェックアウト
@@ -33,13 +35,63 @@ jobs:
       - name: ビルド
         run: ./gradlew shadowJar -PgitCommit=${GIT_COMMIT}
 
-      - name: 現在時刻をJSTで取得
-        run: echo "JST_TIME=$(TZ=Asia/Tokyo date +'%Y%m%d%H%M')" >> $GITHUB_ENV
+      - name: 日時とコミットメッセージの解析
+        id: parse_commit
+        run: |
+          # アーティファクト用のタイムスタンプ (例: 202607221619)
+          echo "JST_TIME=$(TZ=Asia/Tokyo date +'%Y%m%d%H%M')" >> $GITHUB_ENV
+          
+          # リリース用の日時フォーマット (例: 2026.07.22.16.19.57)
+          RELEASE_TAG_TIME=$(TZ=Asia/Tokyo date +'%Y.%m.%d.%H.%M.%S')
+          
+          # 直近のコミットメッセージを取得
+          commit_msg=$(git log -1 --pretty=%B)
+          echo "Commit Message: $commit_msg"
 
-      - name: 配置
+          # 1. [prerelease 説明] の判定
+          if [[ "$commit_msg" =~ \[prerelease[[:space:]]+([^]]+)\] ]]; then
+            description="${BASH_REMATCH[1]}"
+            echo "RELEASE_TYPE=prerelease" >> $GITHUB_ENV
+            echo "RELEASE_TAG=$RELEASE_TAG_TIME" >> $GITHUB_ENV
+            echo "RELEASE_NAME=$RELEASE_TAG_TIME" >> $GITHUB_ENV
+            echo "RELEASE_BODY=$description" >> $GITHUB_ENV
+            echo "IS_PRERELEASE=true" >> $GITHUB_ENV
+            echo "プレリリースを作成します: tag=$RELEASE_TAG_TIME, body=$description"
+
+          # 2. [release タイトル 説明] の判定
+          elif [[ "$commit_msg" =~ \[release[[:space:]]+([^[:space:]]+)[[:space:]]+([^]]+)\] ]]; then
+            title="${BASH_REMATCH[1]}"
+            description="${BASH_REMATCH[2]}"
+            echo "RELEASE_TYPE=release" >> $GITHUB_ENV
+            echo "RELEASE_TAG=$title" >> $GITHUB_ENV
+            echo "RELEASE_NAME=$title" >> $GITHUB_ENV
+            echo "RELEASE_BODY=$description" >> $GITHUB_ENV
+            echo "IS_PRERELEASE=false" >> $GITHUB_ENV
+            echo "通常リリースを作成します: tag=$title, body=$description"
+
+          else
+            echo "RELEASE_TYPE=none" >> $GITHUB_ENV
+            echo "リリース条件には一致しませんでした。"
+          fi
+
+      - name: 配置（Artifactsアップロード）
         uses: actions/upload-artifact@v6
         with:
           name: LWJGLVoxelGame-${{ env.JST_TIME }}-${{ env.GIT_COMMIT }}
           path: |
             Client/build/libs/*.jar
             Server/build/libs/*.jar
+
+      - name: GitHub Releaseを作成
+        if: env.RELEASE_TYPE != 'none'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: ${{ env.RELEASE_NAME }}
+          body: ${{ env.RELEASE_BODY }}
+          prerelease: ${{ env.IS_PRERELEASE }}
+          files: |
+            Client/build/libs/*.jar
+            Server/build/libs/*.jar
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
