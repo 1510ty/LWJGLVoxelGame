@@ -39,31 +39,33 @@ public class ClientLauncher {
     private int shaderProgram;
     private int vao;
     private FloatBuffer matrixBuffer;
-    private long startTime;
 
-    // 画面サイズ定数
     private static final int WIDTH = 1280;
     private static final int HEIGHT = 720;
 
     // プレイヤー（カメラ）の位置と向き
-    private final Vector3f cameraPos = new Vector3f(0.0f, 0.0f, 3.0f);
+    private final Vector3f cameraPos = new Vector3f(0.0f, 2.0f, 5.0f);
     private final Vector3f cameraFront = new Vector3f(0.0f, 0.0f, -1.0f);
     private final Vector3f cameraUp = new Vector3f(0.0f, 1.0f, 0.0f);
 
-    private float yaw = -90.0f; // 左右の向き
-    private float pitch = 0.0f;  // 上下の向き
+    private float yaw = -90.0f;
+    private float pitch = -20.0f;
     private boolean firstMouse = true;
     private double lastX = WIDTH / 2.0;
     private double lastY = HEIGHT / 2.0;
 
-    // キー入力の状態を保存する配列
     private final boolean[] keys = new boolean[1024];
+
+    // ワールドデータの定義
+    private static final int WORLD_SIZE_X = 16;
+    private static final int WORLD_SIZE_Y = 4;
+    private static final int WORLD_SIZE_Z = 16;
+    private final int[][][] worldData = new int[WORLD_SIZE_X][WORLD_SIZE_Y][WORLD_SIZE_Z];
 
     public void run() {
         init();
         loop();
 
-        // クリーンアップ
         glDeleteProgram(shaderProgram);
         glDeleteVertexArrays(vao);
         if (matrixBuffer != null) {
@@ -81,14 +83,12 @@ public class ClientLauncher {
     }
 
     private void init() {
-        // エラー出力の設定
         GLFWErrorCallback.createPrint(System.err).set();
 
         if (!glfwInit()) {
             throw new IllegalStateException("GLFWの初期化に失敗しました。");
         }
 
-        // ウィンドウの設定
         glfwDefaultWindowHints();
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
@@ -96,16 +96,13 @@ public class ClientLauncher {
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-        // ウィンドウの作成
-        window = glfwCreateWindow(WIDTH, HEIGHT, "Voxel Game Client - Player", NULL, NULL);
+        window = glfwCreateWindow(WIDTH, HEIGHT, "Voxel Game Client - DeltaTime", NULL, NULL);
         if (window == NULL) {
             throw new RuntimeException("GLFWウィンドウの作成に失敗しました。");
         }
 
-        // マウスカーソルをウィンドウ内にロックして非表示にする（FPS視点用）
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
-        // マウスの移動イベントを設定
         glfwSetCursorPosCallback(window, (w, xpos, ypos) -> {
             if (firstMouse) {
                 lastX = xpos;
@@ -114,7 +111,7 @@ public class ClientLauncher {
             }
 
             double xoffset = xpos - lastX;
-            double yoffset = lastY - ypos; // Y座標は上がマイナスになるため反転
+            double yoffset = lastY - ypos;
             lastX = xpos;
             lastY = ypos;
 
@@ -125,17 +122,15 @@ public class ClientLauncher {
             yaw += xoffset;
             pitch += yoffset;
 
-            // 視点が真上や真下を向きすぎてバグらないように制限
             if (pitch > 89.0f) pitch = 89.0f;
             if (pitch < -89.0f) pitch = -89.0f;
 
             updateCameraVectors();
         });
 
-        // キーボードの入力イベントを設定
         glfwSetKeyCallback(window, (w, key, scancode, action, mods) -> {
             if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
-                glfwSetWindowShouldClose(window, true); // ESCキーで終了
+                glfwSetWindowShouldClose(window, true);
             }
             if (key >= 0 && key < keys.length) {
                 if (action == GLFW_PRESS) {
@@ -146,7 +141,6 @@ public class ClientLauncher {
             }
         });
 
-        // 画面中央にウィンドウを配置
         try (MemoryStack stack = MemoryStack.stackPush()) {
             IntBuffer pWidth = stack.mallocInt(1);
             IntBuffer pHeight = stack.mallocInt(1);
@@ -164,15 +158,24 @@ public class ClientLauncher {
         glfwShowWindow(window);
         GL.createCapabilities();
 
-        // 3D描画の設定
         glEnable(GL_DEPTH_TEST);
         glEnable(GL_CULL_FACE);
         glCullFace(GL_BACK);
 
+        // ワールドデータの初期化
+        for (int x = 0; x < WORLD_SIZE_X; x++) {
+            for (int z = 0; z < WORLD_SIZE_Z; z++) {
+                worldData[x][0][z] = 1;
+            }
+        }
+        worldData[8][1][8] = 1;
+        worldData[8][2][8] = 1;
+        worldData[5][1][5] = 1;
+
         // 立方体の頂点データ
         float size = 0.5f;
         float[] vertices = {
-                // 前面 (赤)
+                // 前面
                 -size, -size,  size,  1.0f, 0.0f, 0.0f,
                 size, -size,  size,  1.0f, 0.0f, 0.0f,
                 size,  size,  size,  1.0f, 0.0f, 0.0f,
@@ -180,7 +183,7 @@ public class ClientLauncher {
                 -size,  size,  size,  1.0f, 0.0f, 0.0f,
                 -size, -size,  size,  1.0f, 0.0f, 0.0f,
 
-                // 後面 (緑)
+                // 後面
                 -size, -size, -size,  0.0f, 1.0f, 0.0f,
                 -size,  size, -size,  0.0f, 1.0f, 0.0f,
                 size,  size, -size,  0.0f, 1.0f, 0.0f,
@@ -188,7 +191,7 @@ public class ClientLauncher {
                 size, -size, -size,  0.0f, 1.0f, 0.0f,
                 -size, -size, -size,  0.0f, 1.0f, 0.0f,
 
-                // 左面 (青)
+                // 左面
                 -size,  size,  size,  0.0f, 0.0f, 1.0f,
                 -size,  size, -size,  0.0f, 0.0f, 1.0f,
                 -size, -size, -size,  0.0f, 0.0f, 1.0f,
@@ -196,7 +199,7 @@ public class ClientLauncher {
                 -size, -size,  size,  0.0f, 0.0f, 1.0f,
                 -size,  size,  size,  0.0f, 0.0f, 1.0f,
 
-                // 右面 (黄)
+                // 右面
                 size,  size,  size,  1.0f, 1.0f, 0.0f,
                 size, -size,  size,  1.0f, 1.0f, 0.0f,
                 size, -size, -size,  1.0f, 1.0f, 0.0f,
@@ -204,7 +207,7 @@ public class ClientLauncher {
                 size,  size, -size,  1.0f, 1.0f, 0.0f,
                 size,  size,  size,  1.0f, 1.0f, 0.0f,
 
-                // 上面 (マゼンタ)
+                // 上面
                 -size,  size,  size,  1.0f, 0.0f, 1.0f,
                 size,  size,  size,  1.0f, 0.0f, 1.0f,
                 size,  size, -size,  1.0f, 0.0f, 1.0f,
@@ -212,7 +215,7 @@ public class ClientLauncher {
                 -size,  size, -size,  1.0f, 0.0f, 1.0f,
                 -size,  size,  size,  1.0f, 0.0f, 1.0f,
 
-                // 下面 (シアン)
+                // 下面
                 -size, -size,  size,  0.0f, 1.0f, 1.0f,
                 -size, -size, -size,  0.0f, 1.0f, 1.0f,
                 size, -size, -size,  0.0f, 1.0f, 1.0f,
@@ -233,7 +236,6 @@ public class ClientLauncher {
         glVertexAttribPointer(1, 3, GL_FLOAT, false, stride, 3 * Float.BYTES);
         glEnableVertexAttribArray(1);
 
-        // シェーダーのコンパイル
         String vsSource = "#version 330 core\n" +
                 "layout (location = 0) in vec3 aPos;\n" +
                 "layout (location = 1) in vec3 aColor;\n" +
@@ -266,7 +268,6 @@ public class ClientLauncher {
         glDeleteShader(fs);
 
         matrixBuffer = memAllocFloat(16);
-        startTime = System.currentTimeMillis();
         updateCameraVectors();
     }
 
@@ -278,8 +279,9 @@ public class ClientLauncher {
         cameraFront.set(front).normalize();
     }
 
-    private void processInput() {
-        float cameraSpeed = 0.05f; // 移動速度
+    // デルタタイムを受け取り、1秒あたりの移動距離（例: 4.5ブロック/秒）として計算する
+    private void processInput(float deltaTime) {
+        float cameraSpeed = 4.5f * deltaTime;
         if (keys[GLFW_KEY_W]) {
             cameraPos.fma(cameraSpeed, cameraFront);
         }
@@ -306,30 +308,43 @@ public class ClientLauncher {
         Matrix4f model = new Matrix4f();
         Matrix4f mvp = new Matrix4f();
 
+        // ループ開始前の時間を記録
+        double lastFrameTime = glfwGetTime();
+
         while (!glfwWindowShouldClose(window)) {
-            // キー入力を毎フレーム処理してカメラ位置を更新
-            processInput();
+            // 現在の時間を取得し、前フレームからの経過時間（デルタタイム）を計算
+            double currentFrameTime = glfwGetTime();
+            float deltaTime = (float) (currentFrameTime - lastFrameTime);
+            lastFrameTime = currentFrameTime;
+
+            // デルタタイムを渡して入力を処理
+            processInput(deltaTime);
 
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-            // ビュー行列を現在のカメラ位置と向きで更新
             view.identity().lookAt(cameraPos, new Vector3f(cameraPos).add(cameraFront), cameraUp);
 
-            // 立方体の位置を原点（0,0,0）に固定して描画
-            model.identity();
-
-            // 投影 * ビュー * モデル行列の掛け合わせ
-            projection.mul(view, mvp);
-            mvp.mul(model);
-
             glUseProgram(shaderProgram);
-
-            mvp.get(matrixBuffer);
-            int mvpLocation = glGetUniformLocation(shaderProgram, "mvp");
-            glUniformMatrix4fv(mvpLocation, false, matrixBuffer);
-
             glBindVertexArray(vao);
-            glDrawArrays(GL_TRIANGLES, 0, 36);
+
+            for (int x = 0; x < WORLD_SIZE_X; x++) {
+                for (int y = 0; y < WORLD_SIZE_Y; y++) {
+                    for (int z = 0; z < WORLD_SIZE_Z; z++) {
+                        if (worldData[x][y][z] > 0) {
+                            model.identity().translation(x, y, z);
+
+                            projection.mul(view, mvp);
+                            mvp.mul(model);
+
+                            mvp.get(matrixBuffer);
+                            int mvpLocation = glGetUniformLocation(shaderProgram, "mvp");
+                            glUniformMatrix4fv(mvpLocation, false, matrixBuffer);
+
+                            glDrawArrays(GL_TRIANGLES, 0, 36);
+                        }
+                    }
+                }
+            }
 
             glfwSwapBuffers(window);
             glfwPollEvents();
