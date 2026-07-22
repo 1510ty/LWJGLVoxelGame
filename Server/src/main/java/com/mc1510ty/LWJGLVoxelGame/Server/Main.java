@@ -75,22 +75,24 @@ public class Main {
                     e.printStackTrace();
                 }
             }
+
+            if (configFile.exists()) {
+
+                try (InputStream in = Files.newInputStream(configFile.toPath())) {
+                    Map<String, Object> data = yaml.load(in);
+
+                    if (data != null && data.containsKey("server-port")) {
+                        // Number 型にキャストしてから intValue() を呼ぶと安全です
+                        serverPort = ((Number) data.get("server-port")).intValue();
+                    }
+                } catch (Exception e) {
+                    System.out.println("設定ファイルの読み込みに失敗しました。デフォルト値を使用します。");
+                    e.printStackTrace();
+                }
+            }
         } else {
             System.out.println("Integratedモードで起動中のため、設定ファイルは使用せずデフォルト設定で動作します。");
         }
-
-        try (InputStream in = Files.newInputStream(configFile.toPath())) {
-            Map<String, Object> data = yaml.load(in);
-
-            if (data != null && data.containsKey("server-port")) {
-                // Number 型にキャストしてから intValue() を呼ぶと安全です
-                serverPort = ((Number) data.get("server-port")).intValue();
-            }
-        } catch (Exception e) {
-            System.out.println("設定ファイルの読み込みに失敗しました。デフォルト値を使用します。");
-            e.printStackTrace();
-        }
-
 
         File worldFile = new File(worldFilePath);
 
