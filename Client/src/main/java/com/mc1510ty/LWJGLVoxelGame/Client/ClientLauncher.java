@@ -44,6 +44,10 @@ public class ClientLauncher {
     private Renderer renderer;
     private Process serverProcess; // 起動した内蔵サーバーのプロセス保持用
 
+    // メニュー用のボタン
+    private Button singlePlayerButton;
+    private Button multiPlayerButton;
+
     public void run() {
         init();
         loop();
@@ -74,7 +78,14 @@ public class ClientLauncher {
 
         camera = new Camera();
 
+        // マウス座標保持用の変数
+        final double[] mouseX = {0.0};
+        final double[] mouseY = {0.0};
+
         glfwSetCursorPosCallback(window, (w, xpos, ypos) -> {
+            mouseX[0] = xpos;
+            mouseY[0] = ypos;
+
             // プレイ中のみ視点移動を有効にする
             if (currentState == GameState.PLAYING) {
                 if (firstMouse) {
@@ -104,6 +115,24 @@ public class ClientLauncher {
             }
         });
 
+        // マウスクリックのコールバックを追加
+        glfwSetMouseButtonCallback(window, (w, button, action, mods) -> {
+            if (currentState == GameState.MENU && button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+                if (singlePlayerButton != null && singlePlayerButton.isHovered(mouseX[0], mouseY[0])) {
+                    extractAndStartServer();
+                    world = fetchWorldFromServer();
+                    currentState = GameState.PLAYING;
+                    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+                    firstMouse = true;
+                } else if (multiPlayerButton != null && multiPlayerButton.isHovered(mouseX[0], mouseY[0])) {
+                    world = fetchWorldFromServer();
+                    currentState = GameState.PLAYING;
+                    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+                    firstMouse = true;
+                }
+            }
+        });
+
         try (MemoryStack stack = MemoryStack.stackPush()) {
             IntBuffer pWidth = stack.mallocInt(1);
             IntBuffer pHeight = stack.mallocInt(1);
@@ -127,6 +156,12 @@ public class ClientLauncher {
         glClearColor(0.2f, 0.4f, 0.6f, 0.0f);
 
         renderer = new Renderer();
+        renderer.initUI(); // UI用のシェーダーやバッファを初期化
+
+        // ボタンの生成（画面幅1280, 高さ720の中央付近に配置）
+        // 幅400、高さ50 のボタンを上下に並べる
+        singlePlayerButton = new Button(440, 260, 400, 50, "Single Player");
+        multiPlayerButton  = new Button(440, 330, 400, 50, "Multi Player");
     }
 
     // 内蔵サーバーを一時フォルダに展開して実行する
@@ -148,10 +183,9 @@ public class ClientLauncher {
             System.out.println("Starting embedded server process...");
             String javaPath = System.getProperty("java.home") + "/bin/java";
             ProcessBuilder pb = new ProcessBuilder(javaPath, "-jar", serverFile.getAbsolutePath());
-            pb.inheritIO(); // サーバーのログをコンソールにそのまま流す
+            pb.inheritIO();
             serverProcess = pb.start();
 
-            // サーバーが立ち上がるまで少し待機（必要に応じて調整）
             Thread.sleep(2000);
 
         } catch (IOException | InterruptedException e) {
@@ -161,7 +195,6 @@ public class ClientLauncher {
     }
 
     private World fetchWorldFromServer() {
-        // サーバーが立ち上がるまで何度か接続をトライする親切設計
         int maxRetries = 10;
         int attempts = 0;
 
@@ -194,7 +227,7 @@ public class ClientLauncher {
                     throw new RuntimeException("サーバーへの接続に失敗しました。", e);
                 }
                 try {
-                    Thread.sleep(1000); // 1秒待って再トライ
+                    Thread.sleep(1000);
                 } catch (InterruptedException ignored) {}
             }
         }
@@ -210,29 +243,37 @@ public class ClientLauncher {
             float deltaTime = (float) (currentFrameTime - lastFrameTime);
             lastFrameTime = currentFrameTime;
 
-            // 状態に応じた処理の分岐
             if (currentState == GameState.MENU) {
-                // Sキー: 内蔵サーバーを起動して接続（シングルプレイ）
+                // キーボードでの操作も引き続きサポート
                 if (keys[GLFW_KEY_S]) {
                     extractAndStartServer();
                     world = fetchWorldFromServer();
                     currentState = GameState.PLAYING;
                     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
                     firstMouse = true;
-                }
-                // Mキー: サーバーは起動せず、そのまま接続（マルチプレイ）
-                else if (keys[GLFW_KEY_M]) {
+                } else if (keys[GLFW_KEY_M]) {
                     world = fetchWorldFromServer();
                     currentState = GameState.PLAYING;
                     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
                     firstMouse = true;
                 }
 
-                // メニュー画面の描画
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+                // 現在のマウス座標を取得してボタンのホバー判定を行う
+                double[] mx = new double[1];
+                double[] my = new double[1];
+                glfwGetCursorPos(window, mx, my);
+
+                // シングルプレイボタンの描画（マウスが乗っていれば明るくする）
+                boolean isSingleHovered = singlePlayerButton.isHovered(mx[0], my[0]);
+                renderer.renderButton(singlePlayerButton, isSingleHovered, WIDTH, HEIGHT);
+
+                // マルチプレイボタンの描画
+                boolean isMultiHovered = multiPlayerButton.isHovered(mx[0], my[0]);
+                renderer.renderButton(multiPlayerButton, isMultiHovered, WIDTH, HEIGHT);
+
             } else if (currentState == GameState.PLAYING) {
-                // プレイ中の通常のゲーム処理
                 camera.processInput(keys, deltaTime, world);
                 renderer.render(world, camera, projection);
             }
@@ -243,7 +284,6 @@ public class ClientLauncher {
     }
 
     private void cleanup() {
-        // クライアント終了時に、自分で起動した内蔵サーバープロセスがあれば一緒に終了させる
         if (serverProcess != null && serverProcess.isAlive()) {
             System.out.println("Stopping embedded server process...");
             serverProcess.destroy();

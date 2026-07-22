@@ -1,6 +1,7 @@
 package com.mc1510ty.LWJGLVoxelGame.Client;
 
 import org.joml.Matrix4f;
+import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 import java.nio.FloatBuffer;
 
@@ -13,9 +14,97 @@ public class Renderer {
     private int vao;
     private FloatBuffer matrixBuffer;
 
+    private int uiVao;
+    private int uiVbo;
+    private int uiShaderProgram;
+
     public Renderer() {
         setupBuffersAndShaders();
+        initUI(); // ここでUI用の初期化を呼び出すように追加
         matrixBuffer = MemoryUtil.memAllocFloat(16);
+    }
+
+    public void initUI() {
+        float[] vertices = {
+                0.0f, 1.0f,
+                0.0f, 0.0f,
+                1.0f, 0.0f,
+                1.0f, 0.0f,
+                1.0f, 1.0f,
+                0.0f, 1.0f
+        };
+
+        uiVao = glGenVertexArrays();
+        glBindVertexArray(uiVao);
+        uiVbo = glGenBuffers();
+        glBindBuffer(GL_ARRAY_BUFFER, uiVbo);
+        glBufferData(GL_ARRAY_BUFFER, vertices, GL_STATIC_DRAW);
+
+        glVertexAttribPointer(0, 2, GL_FLOAT, false, 2 * Float.BYTES, 0);
+        glEnableVertexAttribArray(0);
+
+        String vsSource = "#version 330 core\n" +
+                "layout (location = 0) in vec2 aPos;\n" +
+                "uniform mat4 projection;\n" +
+                "uniform vec2 position;\n" +
+                "uniform vec2 scale;\n" +
+                "void main() {\n" +
+                "   vec2 pos = aPos * scale + position;\n" +
+                "   gl_Position = projection * vec4(pos, 0.0, 1.0);\n" +
+                "}";
+
+        String fsSource = "#version 330 core\n" +
+                "out vec4 FragColor;\n" +
+                "uniform vec3 color;\n" +
+                "void main() {\n" +
+                "   FragColor = vec4(color, 1.0);\n" +
+                "}";
+
+        int vs = glCreateShader(GL_VERTEX_SHADER);
+        glShaderSource(vs, vsSource);
+        glCompileShader(vs);
+        int fs = glCreateShader(GL_FRAGMENT_SHADER);
+        glShaderSource(fs, fsSource);
+        glCompileShader(fs);
+
+        uiShaderProgram = glCreateProgram();
+        glAttachShader(uiShaderProgram, vs);
+        glAttachShader(uiShaderProgram, fs);
+        glLinkProgram(uiShaderProgram);
+        glDeleteShader(vs);
+        glDeleteShader(fs);
+    }
+
+    public void renderButton(Button button, boolean isHovered, int screenWidth, int screenHeight) {
+        glUseProgram(uiShaderProgram);
+        glBindVertexArray(uiVao);
+
+        Matrix4f ortho = new Matrix4f().ortho2D(0, screenWidth, screenHeight, 0);
+        int projLoc = glGetUniformLocation(uiShaderProgram, "projection");
+
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            FloatBuffer fb = stack.mallocFloat(16);
+            ortho.get(fb);
+            glUniformMatrix4fv(projLoc, false, fb);
+        }
+
+        glUniform2f(glGetUniformLocation(uiShaderProgram, "position"), button.getX(), button.getY());
+        glUniform2f(glGetUniformLocation(uiShaderProgram, "scale"), button.getWidth(), button.getHeight());
+
+        if (isHovered) {
+            glUniform3f(glGetUniformLocation(uiShaderProgram, "color"), 0.4f, 0.4f, 0.4f);
+        } else {
+            glUniform3f(glGetUniformLocation(uiShaderProgram, "color"), 0.2f, 0.2f, 0.2f);
+        }
+
+        // 深度テストとカリングを無効化して、確実に2Dを描画する
+        glDisable(GL_DEPTH_TEST);
+        glDisable(GL_CULL_FACE); // ←ここを追加！
+
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        glEnable(GL_CULL_FACE);  // ←元に戻す
+        glEnable(GL_DEPTH_TEST);
     }
 
     private void setupBuffersAndShaders() {
@@ -25,7 +114,6 @@ public class Renderer {
 
         float size = 0.5f;
         float[] vertices = {
-                // 前面
                 -size, -size,  size,  sideColor[0], sideColor[1], sideColor[2],
                 size, -size,  size,  sideColor[0], sideColor[1], sideColor[2],
                 size,  size,  size,  sideColor[0], sideColor[1], sideColor[2],
@@ -33,7 +121,6 @@ public class Renderer {
                 -size,  size,  size,  sideColor[0], sideColor[1], sideColor[2],
                 -size, -size,  size,  sideColor[0], sideColor[1], sideColor[2],
 
-                // 後面
                 -size, -size, -size,  sideColor[0], sideColor[1], sideColor[2],
                 -size,  size, -size,  sideColor[0], sideColor[1], sideColor[2],
                 size,  size, -size,  sideColor[0], sideColor[1], sideColor[2],
@@ -41,7 +128,6 @@ public class Renderer {
                 size, -size, -size,  sideColor[0], sideColor[1], sideColor[2],
                 -size, -size, -size,  sideColor[0], sideColor[1], sideColor[2],
 
-                // 左面
                 -size,  size,  size,  sideColor[0], sideColor[1], sideColor[2],
                 -size,  size, -size,  sideColor[0], sideColor[1], sideColor[2],
                 -size, -size, -size,  sideColor[0], sideColor[1], sideColor[2],
@@ -49,7 +135,6 @@ public class Renderer {
                 -size, -size,  size,  sideColor[0], sideColor[1], sideColor[2],
                 -size,  size,  size,  sideColor[0], sideColor[1], sideColor[2],
 
-                // 右面
                 size,  size,  size,  sideColor[0], sideColor[1], sideColor[2],
                 size, -size,  size,  sideColor[0], sideColor[1], sideColor[2],
                 size, -size, -size,  sideColor[0], sideColor[1], sideColor[2],
@@ -57,7 +142,6 @@ public class Renderer {
                 size,  size, -size,  sideColor[0], sideColor[1], sideColor[2],
                 size,  size,  size,  sideColor[0], sideColor[1], sideColor[2],
 
-                // 上面
                 -size,  size,  size,  topColor[0], topColor[1], topColor[2],
                 size,  size,  size,  topColor[0], topColor[1], topColor[2],
                 size,  size, -size,  topColor[0], topColor[1], topColor[2],
@@ -65,7 +149,6 @@ public class Renderer {
                 -size,  size, -size,  topColor[0], topColor[1], topColor[2],
                 -size,  size,  size,  topColor[0], topColor[1], topColor[2],
 
-                // 下面
                 -size, -size,  size,  bottomColor[0], bottomColor[1], bottomColor[2],
                 -size, -size, -size,  bottomColor[0], bottomColor[1], bottomColor[2],
                 size, -size, -size,  bottomColor[0], bottomColor[1], bottomColor[2],
@@ -118,7 +201,6 @@ public class Renderer {
         glDeleteShader(fs);
     }
 
-    // 毎フレーム呼ばれる描画処理
     public void render(World world, Camera camera, Matrix4f projection) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -135,7 +217,6 @@ public class Renderer {
                     if (world.getBlock(x, y, z) > 0) {
                         model.identity().translation(x, y, z);
 
-                        // プロジェクション行列 × ビュー行列 × モデル行列
                         projection.mul(view, mvp);
                         mvp.mul(model);
 
@@ -153,6 +234,12 @@ public class Renderer {
     public void cleanup() {
         glDeleteProgram(shaderProgram);
         glDeleteVertexArrays(vao);
+
+        // UI用のリソース解放を追加
+        glDeleteProgram(uiShaderProgram);
+        glDeleteVertexArrays(uiVao);
+        glDeleteBuffers(uiVbo);
+
         if (matrixBuffer != null) {
             MemoryUtil.memFree(matrixBuffer);
         }
