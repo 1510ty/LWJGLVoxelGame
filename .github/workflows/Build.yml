@@ -40,4 +40,6 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: LWJGLVoxelGame-${{ env.JST_TIME }}-${{ env.GIT_COMMIT }}
-          path: Client/build/libs/*.jar | Server/build/libs/*.jar
+          path: |
+            Client/build/libs/*.jar
+            Server/build/libs/*.jar
