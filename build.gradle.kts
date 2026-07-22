@@ -17,7 +17,7 @@ import java.time.format.DateTimeFormatter
 import java.time.LocalDateTime
 
 val gitCommit: String? by project
-val buildTime = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmm"))
+val buildTime = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
 
 version = if (!gitCommit.isNullOrBlank()) {
     "$buildTime-$gitCommit"

@@ -54,7 +54,7 @@ jobs:
         id: parse_commit
         run: |
           # アーティファクト用のタイムスタンプ (例: 202607221619)
-          echo "JST_TIME=$(TZ=Asia/Tokyo date +'%Y%m%d%H%M')" >> $GITHUB_ENV
+          echo "JST_TIME=$(TZ=Asia/Tokyo date +'%Y%m%d%H%M%S')" >> $GITHUB_ENV
           
           # リリース用の日時フォーマット (例: 2026.07.22.16.19.57)
           RELEASE_TAG_TIME=$(TZ=Asia/Tokyo date +'%Y.%m.%d.%H.%M.%S')
