@@ -6,6 +6,9 @@ import org.lwjgl.glfw.GLFWVidMode;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.system.MemoryStack;
 
+import java.io.DataInputStream;
+import java.io.IOException;
+import java.net.Socket;
 import java.nio.IntBuffer;
 
 import static org.lwjgl.glfw.Callbacks.glfwFreeCallbacks;
@@ -24,6 +27,13 @@ public class ClientLauncher {
     private boolean firstMouse = true;
     private double lastX = WIDTH / 2.0;
     private double lastY = HEIGHT / 2.0;
+
+    // ゲームの状態を表す列挙型
+    public enum GameState {
+        MENU,
+        PLAYING
+    }
+    private GameState currentState = GameState.MENU;
 
     private World world;
     private Camera camera;
@@ -49,29 +59,31 @@ public class ClientLauncher {
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-        window = glfwCreateWindow(WIDTH, HEIGHT, "Voxel Game Client - Multi-Class", NULL, NULL);
+        window = glfwCreateWindow(WIDTH, HEIGHT, "Voxel Game Client", NULL, NULL);
         if (window == NULL) {
             throw new RuntimeException("GLFWウィンドウの作成に失敗しました。");
         }
 
-        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        // 初期状態はメニューなので、マウスカーソルを表示する
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 
-        // 各種クラスのインスタンス化
-        world = new World();
         camera = new Camera();
 
         glfwSetCursorPosCallback(window, (w, xpos, ypos) -> {
-            if (firstMouse) {
+            // プレイ中のみ視点移動を有効にする
+            if (currentState == GameState.PLAYING) {
+                if (firstMouse) {
+                    lastX = xpos;
+                    lastY = ypos;
+                    firstMouse = false;
+                }
+                float xoffset = (float) (xpos - lastX);
+                float yoffset = (float) (lastY - ypos);
                 lastX = xpos;
                 lastY = ypos;
-                firstMouse = false;
-            }
-            float xoffset = (float) (xpos - lastX);
-            float yoffset = (float) (lastY - ypos);
-            lastX = xpos;
-            lastY = ypos;
 
-            camera.processMouseMovement(xoffset, yoffset);
+                camera.processMouseMovement(xoffset, yoffset);
+            }
         });
 
         glfwSetKeyCallback(window, (w, key, scancode, action, mods) -> {
@@ -109,8 +121,36 @@ public class ClientLauncher {
         glCullFace(GL_BACK);
         glClearColor(0.2f, 0.4f, 0.6f, 0.0f);
 
-        // OpenGLコンテキストができた後にRendererを初期化
         renderer = new Renderer();
+    }
+
+    private World fetchWorldFromServer() {
+        try {
+            System.out.println("Connecting to server...");
+            Socket socket = new Socket("localhost", 25565);
+            DataInputStream in = new DataInputStream(socket.getInputStream());
+
+            int sizeX = in.readInt();
+            int sizeY = in.readInt();
+            int sizeZ = in.readInt();
+
+            int[][][] loadedData = new int[sizeX][sizeY][sizeZ];
+            for (int x = 0; x < sizeX; x++) {
+                for (int y = 0; y < sizeY; y++) {
+                    for (int z = 0; z < sizeZ; z++) {
+                        loadedData[x][y][z] = in.readInt();
+                    }
+                }
+            }
+
+            socket.close();
+            System.out.println("World data received from server!");
+            return new World(sizeX, sizeY, sizeZ, loadedData);
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new RuntimeException("サーバーからのワールドデータの取得に失敗しました。");
+        }
     }
 
     private void loop() {
@@ -122,11 +162,31 @@ public class ClientLauncher {
             float deltaTime = (float) (currentFrameTime - lastFrameTime);
             lastFrameTime = currentFrameTime;
 
-            // 1. 入力の処理とカメラ（プレイヤー）の移動
-            camera.processInput(keys, deltaTime, world);
+            // 状態に応じた処理の分岐
+            if (currentState == GameState.MENU) {
+                // メニュー画面中の入力判定（例: Enterキーでゲーム開始）
+                if (keys[GLFW_KEY_ENTER]) {
+                    // 1. サーバーからワールドデータを取得
+                    world = fetchWorldFromServer();
 
-            // 2. 描画処理
-            renderer.render(world, camera, projection);
+                    // 2. 状態をプレイ中に変更
+                    currentState = GameState.PLAYING;
+
+                    // 3. マウスを非表示・ロックして視点移動できるようにする
+                    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+                    // マウス位置の急変動を防ぐリセット
+                    firstMouse = true;
+                }
+
+                // メニュー画面の描画（今は背景色でクリアするだけ）
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+            } else if (currentState == GameState.PLAYING) {
+                // プレイ中の通常のゲーム処理
+                camera.processInput(keys, deltaTime, world);
+                renderer.render(world, camera, projection);
+            }
 
             glfwSwapBuffers(window);
             glfwPollEvents();

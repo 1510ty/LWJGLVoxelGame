@@ -8,6 +8,7 @@
           <set>
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/Client" />
+            <option value="$PROJECT_DIR$/Launcher" />
             <option value="$PROJECT_DIR$/Server" />
           </set>
         </option>
