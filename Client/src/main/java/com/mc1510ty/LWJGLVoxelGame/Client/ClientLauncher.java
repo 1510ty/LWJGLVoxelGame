@@ -43,8 +43,8 @@ public class ClientLauncher {
     private static final int WIDTH = 1280;
     private static final int HEIGHT = 720;
 
-    // プレイヤー（カメラ）の位置と向き
-    private final Vector3f cameraPos = new Vector3f(0.0f, 2.0f, 5.0f);
+    // プレイヤーの位置（初期位置を床の上、少し高めに設定）
+    private final Vector3f cameraPos = new Vector3f(8.0f, 2.5f, 8.0f);
     private final Vector3f cameraFront = new Vector3f(0.0f, 0.0f, -1.0f);
     private final Vector3f cameraUp = new Vector3f(0.0f, 1.0f, 0.0f);
 
@@ -56,7 +56,6 @@ public class ClientLauncher {
 
     private final boolean[] keys = new boolean[1024];
 
-    // ワールドデータの定義
     private static final int WORLD_SIZE_X = 16;
     private static final int WORLD_SIZE_Y = 4;
     private static final int WORLD_SIZE_Z = 16;
@@ -96,7 +95,7 @@ public class ClientLauncher {
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-        window = glfwCreateWindow(WIDTH, HEIGHT, "Voxel Game Client - DeltaTime", NULL, NULL);
+        window = glfwCreateWindow(WIDTH, HEIGHT, "Voxel Game Client - Grass & Collision", NULL, NULL);
         if (window == NULL) {
             throw new RuntimeException("GLFWウィンドウの作成に失敗しました。");
         }
@@ -165,63 +164,67 @@ public class ClientLauncher {
         // ワールドデータの初期化
         for (int x = 0; x < WORLD_SIZE_X; x++) {
             for (int z = 0; z < WORLD_SIZE_Z; z++) {
-                worldData[x][0][z] = 1;
+                worldData[x][0][z] = 1; // 最底面（Y=0）に床
             }
         }
         worldData[8][1][8] = 1;
         worldData[8][2][8] = 1;
         worldData[5][1][5] = 1;
 
-        // 立方体の頂点データ
+        // --- 草ブロック風の色定義（上面: 緑, 側面・下面: 土色） ---
+        float[] topColor   = {0.3f, 0.75f, 0.3f}; // 緑
+        float[] sideColor  = {0.55f, 0.35f, 0.15f}; // 土色
+        float[] bottomColor = {0.4f, 0.25f, 0.1f};  // 少し暗い土色
+
         float size = 0.5f;
         float[] vertices = {
-                // 前面
-                -size, -size,  size,  1.0f, 0.0f, 0.0f,
-                size, -size,  size,  1.0f, 0.0f, 0.0f,
-                size,  size,  size,  1.0f, 0.0f, 0.0f,
-                size,  size,  size,  1.0f, 0.0f, 0.0f,
-                -size,  size,  size,  1.0f, 0.0f, 0.0f,
-                -size, -size,  size,  1.0f, 0.0f, 0.0f,
+                // 前面 (側面)
+                -size, -size,  size,  sideColor[0], sideColor[1], sideColor[2],
+                size, -size,  size,  sideColor[0], sideColor[1], sideColor[2],
+                size,  size,  size,  sideColor[0], sideColor[1], sideColor[2],
+                size,  size,  size,  sideColor[0], sideColor[1], sideColor[2],
+                -size,  size,  size,  sideColor[0], sideColor[1], sideColor[2],
+                -size, -size,  size,  sideColor[0], sideColor[1], sideColor[2],
 
-                // 後面
-                -size, -size, -size,  0.0f, 1.0f, 0.0f,
-                -size,  size, -size,  0.0f, 1.0f, 0.0f,
-                size,  size, -size,  0.0f, 1.0f, 0.0f,
-                size,  size, -size,  0.0f, 1.0f, 0.0f,
-                size, -size, -size,  0.0f, 1.0f, 0.0f,
-                -size, -size, -size,  0.0f, 1.0f, 0.0f,
+                // 後面 (側面)
+                -size, -size, -size,  sideColor[0], sideColor[1], sideColor[2],
+                -size,  size, -size,  sideColor[0], sideColor[1], sideColor[2],
+                size,  size, -size,  sideColor[0], sideColor[1], sideColor[2],
+                size,  size, -size,  sideColor[0], sideColor[1], sideColor[2],
+                size, -size, -size,  sideColor[0], sideColor[1], sideColor[2],
+                -size, -size, -size,  sideColor[0], sideColor[1], sideColor[2],
 
-                // 左面
-                -size,  size,  size,  0.0f, 0.0f, 1.0f,
-                -size,  size, -size,  0.0f, 0.0f, 1.0f,
-                -size, -size, -size,  0.0f, 0.0f, 1.0f,
-                -size, -size, -size,  0.0f, 0.0f, 1.0f,
-                -size, -size,  size,  0.0f, 0.0f, 1.0f,
-                -size,  size,  size,  0.0f, 0.0f, 1.0f,
+                // 左面 (側面)
+                -size,  size,  size,  sideColor[0], sideColor[1], sideColor[2],
+                -size,  size, -size,  sideColor[0], sideColor[1], sideColor[2],
+                -size, -size, -size,  sideColor[0], sideColor[1], sideColor[2],
+                -size, -size, -size,  sideColor[0], sideColor[1], sideColor[2],
+                -size, -size,  size,  sideColor[0], sideColor[1], sideColor[2],
+                -size,  size,  size,  sideColor[0], sideColor[1], sideColor[2],
 
-                // 右面
-                size,  size,  size,  1.0f, 1.0f, 0.0f,
-                size, -size,  size,  1.0f, 1.0f, 0.0f,
-                size, -size, -size,  1.0f, 1.0f, 0.0f,
-                size, -size, -size,  1.0f, 1.0f, 0.0f,
-                size,  size, -size,  1.0f, 1.0f, 0.0f,
-                size,  size,  size,  1.0f, 1.0f, 0.0f,
+                // 右面 (側面)
+                size,  size,  size,  sideColor[0], sideColor[1], sideColor[2],
+                size, -size,  size,  sideColor[0], sideColor[1], sideColor[2],
+                size, -size, -size,  sideColor[0], sideColor[1], sideColor[2],
+                size, -size, -size,  sideColor[0], sideColor[1], sideColor[2],
+                size,  size, -size,  sideColor[0], sideColor[1], sideColor[2],
+                size,  size,  size,  sideColor[0], sideColor[1], sideColor[2],
 
-                // 上面
-                -size,  size,  size,  1.0f, 0.0f, 1.0f,
-                size,  size,  size,  1.0f, 0.0f, 1.0f,
-                size,  size, -size,  1.0f, 0.0f, 1.0f,
-                size,  size, -size,  1.0f, 0.0f, 1.0f,
-                -size,  size, -size,  1.0f, 0.0f, 1.0f,
-                -size,  size,  size,  1.0f, 0.0f, 1.0f,
+                // 上面 (草の色)
+                -size,  size,  size,  topColor[0], topColor[1], topColor[2],
+                size,  size,  size,  topColor[0], topColor[1], topColor[2],
+                size,  size, -size,  topColor[0], topColor[1], topColor[2],
+                size,  size, -size,  topColor[0], topColor[1], topColor[2],
+                -size,  size, -size,  topColor[0], topColor[1], topColor[2],
+                -size,  size,  size,  topColor[0], topColor[1], topColor[2],
 
-                // 下面
-                -size, -size,  size,  0.0f, 1.0f, 1.0f,
-                -size, -size, -size,  0.0f, 1.0f, 1.0f,
-                size, -size, -size,  0.0f, 1.0f, 1.0f,
-                size, -size, -size,  0.0f, 1.0f, 1.0f,
-                size, -size,  size,  0.0f, 1.0f, 1.0f,
-                -size, -size,  size,  0.0f, 1.0f, 1.0f
+                // 下面 (土の色)
+                -size, -size,  size,  bottomColor[0], bottomColor[1], bottomColor[2],
+                -size, -size, -size,  bottomColor[0], bottomColor[1], bottomColor[2],
+                size, -size, -size,  bottomColor[0], bottomColor[1], bottomColor[2],
+                size, -size, -size,  bottomColor[0], bottomColor[1], bottomColor[2],
+                size, -size,  size,  bottomColor[0], bottomColor[1], bottomColor[2],
+                -size, -size,  size,  bottomColor[0], bottomColor[1], bottomColor[2]
         };
 
         vao = glGenVertexArrays();
@@ -279,25 +282,55 @@ public class ClientLauncher {
         cameraFront.set(front).normalize();
     }
 
-    // デルタタイムを受け取り、1秒あたりの移動距離（例: 4.5ブロック/秒）として計算する
     private void processInput(float deltaTime) {
         float cameraSpeed = 4.5f * deltaTime;
+
+        // 移動用の仮ベクトルを作成
+        Vector3f moveDir = new Vector3f();
         if (keys[GLFW_KEY_W]) {
-            cameraPos.fma(cameraSpeed, cameraFront);
+            moveDir.add(cameraFront.x, 0.0f, cameraFront.z); // Y軸方向の移動を無視して水平に移動
         }
         if (keys[GLFW_KEY_S]) {
-            cameraPos.fma(-cameraSpeed, cameraFront);
+            moveDir.sub(cameraFront.x, 0.0f, cameraFront.z);
         }
         if (keys[GLFW_KEY_A]) {
             Vector3f side = new Vector3f();
             cameraFront.cross(cameraUp, side).normalize();
-            cameraPos.fma(-cameraSpeed, side);
+            moveDir.sub(side);
         }
         if (keys[GLFW_KEY_D]) {
             Vector3f side = new Vector3f();
             cameraFront.cross(cameraUp, side).normalize();
-            cameraPos.fma(cameraSpeed, side);
+            moveDir.add(side);
         }
+
+        if (moveDir.lengthSquared() > 0) {
+            moveDir.normalize().mul(cameraSpeed);
+            cameraPos.add(moveDir);
+        }
+
+        // --- 簡易的な高さ制限（床の上を歩くようにする） ---
+        // 床の上面（Y = 1.0）＋ プレイヤーの目の高さ（1.5） = 2.5 を基本の足場とする
+        float groundHeight = 1.0f + 1.5f;
+
+        // もし中央のブロック（X:8, Z:8）のあたりにいたら、その上のブロック（Y=2）の高さに乗れるようにする
+        int blockX = Math.round(cameraPos.x);
+        int blockZ = Math.round(cameraPos.z);
+
+        if (blockX >= 0 && blockX < WORLD_SIZE_X && blockZ >= 0 && blockZ < WORLD_SIZE_Z) {
+            // その場所にある一番高いブロックを探す
+            for (int y = WORLD_SIZE_Y - 1; y >= 0; y--) {
+                if (worldData[blockX][y][blockZ] > 0) {
+                    float surfaceY = (y + 0.5f) + 1.5f; // ブロック上面 + 目の高さ
+                    if (cameraPos.y < surfaceY + 0.5f && cameraPos.y > surfaceY - 1.0f) {
+                        groundHeight = surfaceY;
+                        break;
+                    }
+                }
+            }
+        }
+
+        cameraPos.y = groundHeight; // 高さを固定して宙に浮いたり沈んだりしないようにする
     }
 
     private void loop() {
@@ -308,16 +341,13 @@ public class ClientLauncher {
         Matrix4f model = new Matrix4f();
         Matrix4f mvp = new Matrix4f();
 
-        // ループ開始前の時間を記録
         double lastFrameTime = glfwGetTime();
 
         while (!glfwWindowShouldClose(window)) {
-            // 現在の時間を取得し、前フレームからの経過時間（デルタタイム）を計算
             double currentFrameTime = glfwGetTime();
             float deltaTime = (float) (currentFrameTime - lastFrameTime);
             lastFrameTime = currentFrameTime;
 
-            // デルタタイムを渡して入力を処理
             processInput(deltaTime);
 
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
