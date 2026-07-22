@@ -21,4 +21,10 @@ public class World {
         }
         return data[x][y][z];
     }
+
+    public void setBlock(int x, int y, int z, int id) {
+        if (x >= 0 && x < SIZE_X && y >= 0 && y < SIZE_Y && z >= 0 && z < SIZE_Z) {
+            data[x][y][z] = id;
+        }
+    }
 }

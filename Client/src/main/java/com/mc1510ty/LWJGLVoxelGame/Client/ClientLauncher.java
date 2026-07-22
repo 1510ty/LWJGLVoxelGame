@@ -7,10 +7,7 @@ import org.lwjgl.glfw.GLFWVidMode;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.system.MemoryStack;
 
-import java.io.DataInputStream;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.net.Socket;
 import java.nio.IntBuffer;
 import java.nio.file.Files;
@@ -23,6 +20,7 @@ import static org.lwjgl.system.MemoryUtil.NULL;
 
 public class ClientLauncher {
     private long window;
+
 
     private static final int WIDTH = 1280;
     private static final int HEIGHT = 720;
@@ -48,7 +46,24 @@ public class ClientLauncher {
     private Button singlePlayerButton;
     private Button multiPlayerButton;
 
-    public void run() {
+    private DataOutputStream serverOut;
+    private Socket serverSocket;
+
+    private String worldFilePath;
+
+    public void run(String[] args) {
+        // 引数でワールドファイルのパスが指定されていればそれを使用する
+        if (args.length > 0) {
+            worldFilePath = args[0];
+        } else {
+            // 指定がない場合のデフォルトパス（一時フォルダ内）
+            File tempDir = new File(System.getProperty("java.io.tmpdir"), "voxelgame_server");
+            if (!tempDir.exists()) {
+                tempDir.mkdirs();
+            }
+            worldFilePath = new File(tempDir, "world.dat").getAbsolutePath();
+        }
+
         init();
         loop();
         cleanup();
@@ -112,6 +127,7 @@ public class ClientLauncher {
             }
         });
 
+
         glfwSetMouseButtonCallback(window, (w, button, action, mods) -> {
             if (currentState == GameState.MENU && button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
                 if (singlePlayerButton != null && singlePlayerButton.isHovered(mouseX[0], mouseY[0])) {
@@ -125,6 +141,19 @@ public class ClientLauncher {
                     currentState = GameState.PLAYING;
                     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
                     firstMouse = true;
+                }
+            } else if (currentState == GameState.PLAYING && action == GLFW_PRESS) {
+                RaycastResult hit = raycast(6.0f); // 射程距離 6ブロック
+                if (hit.hit) {
+                    if (button == GLFW_MOUSE_BUTTON_LEFT) {
+                        // 左クリック：ブロックを破壊
+                        world.setBlock(hit.x, hit.y, hit.z, 0);
+                        sendBlockChange(hit.x, hit.y, hit.z, 0); // サーバーへ送信
+                    } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+                        // 右クリック：ブロックを設置
+                        world.setBlock(hit.prevX, hit.prevY, hit.prevZ, 1);
+                        sendBlockChange(hit.prevX, hit.prevY, hit.prevZ, 1); // サーバーへ送信
+                    }
                 }
             }
         });
@@ -176,9 +205,17 @@ public class ClientLauncher {
             File serverFile = new File(tempDir, "server.jar");
             Files.copy(in, serverFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
 
-            System.out.println("Starting embedded server process...");
+            System.out.println("Starting embedded server process with save path: " + worldFilePath);
             String javaPath = System.getProperty("java.home") + "/bin/java";
-            ProcessBuilder pb = new ProcessBuilder(javaPath, "-jar", serverFile.getAbsolutePath());
+
+            // クライアントが保持しているワールドファイルのパスをそのまま引数として渡す
+            ProcessBuilder pb = new ProcessBuilder(
+                    javaPath,
+                    "-jar",
+                    serverFile.getAbsolutePath(),
+                    worldFilePath
+            );
+
             pb.inheritIO();
             serverProcess = pb.start();
 
@@ -197,8 +234,11 @@ public class ClientLauncher {
         while (attempts < maxRetries) {
             try {
                 System.out.println("Connecting to server (Attempt " + (attempts + 1) + ")...");
-                Socket socket = new Socket("localhost", 25565);
-                DataInputStream in = new DataInputStream(socket.getInputStream());
+
+                // ローカル変数ではなく、クラスのフィールドに代入する
+                serverSocket = new Socket("localhost", 25565);
+                DataInputStream in = new DataInputStream(serverSocket.getInputStream());
+                serverOut = new DataOutputStream(serverSocket.getOutputStream()); // ← ここで出力ストリームを保持！
 
                 int sizeX = in.readInt();
                 int sizeY = in.readInt();
@@ -213,8 +253,8 @@ public class ClientLauncher {
                     }
                 }
 
-                socket.close();
-                System.out.println("World data received from server!");
+                // socket.close(); は削除！ 接続を維持します。
+                System.out.println("World data received from server and connection kept open!");
                 return new World(sizeX, sizeY, sizeZ, loadedData);
 
             } catch (IOException e) {
@@ -282,13 +322,43 @@ public class ClientLauncher {
     }
 
     private void cleanup() {
+        // インテグレーテッドサーバーが起動している場合（シングルプレイ時）のみ終了処理を行う
         if (serverProcess != null && serverProcess.isAlive()) {
-            System.out.println("Stopping embedded server process...");
-            serverProcess.destroy();
+            System.out.println("Stopping embedded server gracefully...");
+
+            // 1. サーバーへ終了パケット（-1）を送信してセーブさせる
+            if (serverOut != null) {
+                try {
+                    serverOut.writeInt(0);  // ダミーの x
+                    serverOut.writeInt(0);  // ダミーの y
+                    serverOut.writeInt(0);  // ダミーの z
+                    serverOut.writeInt(-1); // 終了を示す ID
+                    serverOut.flush();
+                } catch (IOException ignored) {}
+            }
+
+            try {
+                // 2. サーバーが安全に終了（セーブ完了）するのを最大3秒待つ
+                boolean exited = serverProcess.waitFor(3, java.util.concurrent.TimeUnit.SECONDS);
+                if (!exited) {
+                    // 時間内に終わらなかった場合のみ強制終了
+                    serverProcess.destroyForcibly();
+                }
+            } catch (InterruptedException e) {
+                serverProcess.destroyForcibly();
+            }
+        }
+
+        if (serverSocket != null && !serverSocket.isClosed()) {
+            try {
+                serverSocket.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
 
         if (fontRenderer != null) {
-            fontRenderer.cleanup(); // ← 追加
+            fontRenderer.cleanup();
         }
 
         renderer.cleanup();
@@ -300,6 +370,58 @@ public class ClientLauncher {
         GLFWErrorCallback callback = glfwSetErrorCallback(null);
         if (callback != null) {
             callback.free();
+        }
+    }
+
+    private RaycastResult raycast(float maxDistance) {
+        RaycastResult result = new RaycastResult();
+        if (world == null) return result;
+
+        Vector3f rayPos = new Vector3f(camera.pos);
+        Vector3f rayDir = new Vector3f(camera.front);
+
+        float step = 0.05f;
+        int lastX = Math.round(rayPos.x);
+        int lastY = Math.round(rayPos.y);
+        int lastZ = Math.round(rayPos.z);
+
+        for (float d = 0; d < maxDistance; d += step) {
+            rayPos.add(new Vector3f(rayDir).mul(step));
+
+            int bx = Math.round(rayPos.x);
+            int by = Math.round(rayPos.y);
+            int bz = Math.round(rayPos.z);
+
+            if (bx != lastX || by != lastY || bz != lastZ) {
+                if (world.getBlock(bx, by, bz) > 0) {
+                    result.hit = true;
+                    result.x = bx;
+                    result.y = by;
+                    result.z = bz;
+                    result.prevX = lastX;
+                    result.prevY = lastY;
+                    result.prevZ = lastZ;
+                    return result;
+                }
+                lastX = bx;
+                lastY = by;
+                lastZ = bz;
+            }
+        }
+        return result;
+    }
+
+    private void sendBlockChange(int x, int y, int z, int id) {
+        if (serverOut != null) {
+            try {
+                serverOut.writeInt(x);
+                serverOut.writeInt(y);
+                serverOut.writeInt(z);
+                serverOut.writeInt(id);
+                serverOut.flush();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
 }
