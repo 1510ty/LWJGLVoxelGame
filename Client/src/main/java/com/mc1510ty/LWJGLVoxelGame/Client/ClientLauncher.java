@@ -1,6 +1,7 @@
 package com.mc1510ty.LWJGLVoxelGame.Client;
 
 import org.joml.Matrix4f;
+import org.joml.Vector3f; // 追加
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.glfw.GLFWVidMode;
 import org.lwjgl.opengl.GL;
@@ -32,7 +33,6 @@ public class ClientLauncher {
     private double lastX = WIDTH / 2.0;
     private double lastY = HEIGHT / 2.0;
 
-    // ゲームの状態を表す列挙型
     public enum GameState {
         MENU,
         PLAYING
@@ -42,9 +42,9 @@ public class ClientLauncher {
     private World world;
     private Camera camera;
     private Renderer renderer;
-    private Process serverProcess; // 起動した内蔵サーバーのプロセス保持用
+    private FontRenderer fontRenderer; // ← 追加
+    private Process serverProcess;
 
-    // メニュー用のボタン
     private Button singlePlayerButton;
     private Button multiPlayerButton;
 
@@ -73,12 +73,10 @@ public class ClientLauncher {
             throw new RuntimeException("GLFWウィンドウの作成に失敗しました。");
         }
 
-        // 初期状態はメニューなので、マウスカーソルを表示する
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 
         camera = new Camera();
 
-        // マウス座標保持用の変数
         final double[] mouseX = {0.0};
         final double[] mouseY = {0.0};
 
@@ -86,7 +84,6 @@ public class ClientLauncher {
             mouseX[0] = xpos;
             mouseY[0] = ypos;
 
-            // プレイ中のみ視点移動を有効にする
             if (currentState == GameState.PLAYING) {
                 if (firstMouse) {
                     lastX = xpos;
@@ -115,7 +112,6 @@ public class ClientLauncher {
             }
         });
 
-        // マウスクリックのコールバックを追加
         glfwSetMouseButtonCallback(window, (w, button, action, mods) -> {
             if (currentState == GameState.MENU && button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
                 if (singlePlayerButton != null && singlePlayerButton.isHovered(mouseX[0], mouseY[0])) {
@@ -156,15 +152,15 @@ public class ClientLauncher {
         glClearColor(0.2f, 0.4f, 0.6f, 0.0f);
 
         renderer = new Renderer();
-        renderer.initUI(); // UI用のシェーダーやバッファを初期化
+        renderer.initUI();
 
-        // ボタンの生成（画面幅1280, 高さ720の中央付近に配置）
-        // 幅400、高さ50 のボタンを上下に並べる
+        // フォントレンダラーの初期化（resourcesフォルダ内のパスを指定）
+        fontRenderer = new FontRenderer("/NotoSansJP-Regular.ttf"); // ← 追加
+
         singlePlayerButton = new Button(440, 260, 400, 50, "Single Player");
         multiPlayerButton  = new Button(440, 330, 400, 50, "Multi Player");
     }
 
-    // 内蔵サーバーを一時フォルダに展開して実行する
     private void extractAndStartServer() {
         try {
             System.out.println("Extracting embedded server.jar...");
@@ -244,7 +240,6 @@ public class ClientLauncher {
             lastFrameTime = currentFrameTime;
 
             if (currentState == GameState.MENU) {
-                // キーボードでの操作も引き続きサポート
                 if (keys[GLFW_KEY_S]) {
                     extractAndStartServer();
                     world = fetchWorldFromServer();
@@ -260,18 +255,21 @@ public class ClientLauncher {
 
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-                // 現在のマウス座標を取得してボタンのホバー判定を行う
                 double[] mx = new double[1];
                 double[] my = new double[1];
                 glfwGetCursorPos(window, mx, my);
 
-                // シングルプレイボタンの描画（マウスが乗っていれば明るくする）
+                // シングルプレイボタンの描画
                 boolean isSingleHovered = singlePlayerButton.isHovered(mx[0], my[0]);
                 renderer.renderButton(singlePlayerButton, isSingleHovered, WIDTH, HEIGHT);
+                // ボタンの上に文字を描画（白文字: RGB(1,1,1)）
+                fontRenderer.drawText("SinglePlayer", 470.0f, 272.0f, 1.0f, WIDTH, HEIGHT, new Vector3f(1.0f, 1.0f, 1.0f));
 
                 // マルチプレイボタンの描画
                 boolean isMultiHovered = multiPlayerButton.isHovered(mx[0], my[0]);
                 renderer.renderButton(multiPlayerButton, isMultiHovered, WIDTH, HEIGHT);
+                // ボタンの上に文字を描画
+                fontRenderer.drawText("MultiPlayer", 485.0f, 342.0f, 1.0f, WIDTH, HEIGHT, new Vector3f(1.0f, 1.0f, 1.0f));
 
             } else if (currentState == GameState.PLAYING) {
                 camera.processInput(keys, deltaTime, world);
@@ -287,6 +285,10 @@ public class ClientLauncher {
         if (serverProcess != null && serverProcess.isAlive()) {
             System.out.println("Stopping embedded server process...");
             serverProcess.destroy();
+        }
+
+        if (fontRenderer != null) {
+            fontRenderer.cleanup(); // ← 追加
         }
 
         renderer.cleanup();
