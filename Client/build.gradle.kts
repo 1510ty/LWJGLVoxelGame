@@ -29,8 +29,22 @@ tasks{
     }
 }
 
+evaluationDependsOn(":Server")
 
+// サーバー側の shadowJar タスクを参照する
+val serverShadowJar = project(":Server").tasks.named("shadowJar")
 
+val copyServerJar by tasks.registering(Copy::class) {
+    dependsOn(serverShadowJar)
+    // ファイル名ではなく、タスクの出力プロパティから「生成されたJAR」を直接取得する
+    from(serverShadowJar.map { (it as org.gradle.jvm.tasks.Jar).archiveFile.get() })
+    into(layout.projectDirectory.dir("src/main/resources"))
+    rename { "server.jar" }
+}
+
+tasks.named("processResources") {
+    dependsOn(copyServerJar)
+}
 
 val lwjglVersion = "3.4.3-SNAPSHOT"
 val jomlVersion = "1.10.9"

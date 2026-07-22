@@ -7,9 +7,13 @@ import org.lwjgl.opengl.GL;
 import org.lwjgl.system.MemoryStack;
 
 import java.io.DataInputStream;
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.Socket;
 import java.nio.IntBuffer;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 
 import static org.lwjgl.glfw.Callbacks.glfwFreeCallbacks;
 import static org.lwjgl.glfw.GLFW.*;
@@ -38,6 +42,7 @@ public class ClientLauncher {
     private World world;
     private Camera camera;
     private Renderer renderer;
+    private Process serverProcess; // 起動した内蔵サーバーのプロセス保持用
 
     public void run() {
         init();
@@ -124,33 +129,76 @@ public class ClientLauncher {
         renderer = new Renderer();
     }
 
-    private World fetchWorldFromServer() {
+    // 内蔵サーバーを一時フォルダに展開して実行する
+    private void extractAndStartServer() {
         try {
-            System.out.println("Connecting to server...");
-            Socket socket = new Socket("localhost", 25565);
-            DataInputStream in = new DataInputStream(socket.getInputStream());
-
-            int sizeX = in.readInt();
-            int sizeY = in.readInt();
-            int sizeZ = in.readInt();
-
-            int[][][] loadedData = new int[sizeX][sizeY][sizeZ];
-            for (int x = 0; x < sizeX; x++) {
-                for (int y = 0; y < sizeY; y++) {
-                    for (int z = 0; z < sizeZ; z++) {
-                        loadedData[x][y][z] = in.readInt();
-                    }
-                }
+            System.out.println("Extracting embedded server.jar...");
+            InputStream in = ClientLauncher.class.getResourceAsStream("/server.jar");
+            if (in == null) {
+                throw new RuntimeException("内蔵された server.jar が見つかりません。");
             }
 
-            socket.close();
-            System.out.println("World data received from server!");
-            return new World(sizeX, sizeY, sizeZ, loadedData);
+            File tempDir = new File(System.getProperty("java.io.tmpdir"), "voxelgame_server");
+            if (!tempDir.exists()) {
+                tempDir.mkdirs();
+            }
+            File serverFile = new File(tempDir, "server.jar");
+            Files.copy(in, serverFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
 
-        } catch (IOException e) {
+            System.out.println("Starting embedded server process...");
+            String javaPath = System.getProperty("java.home") + "/bin/java";
+            ProcessBuilder pb = new ProcessBuilder(javaPath, "-jar", serverFile.getAbsolutePath());
+            pb.inheritIO(); // サーバーのログをコンソールにそのまま流す
+            serverProcess = pb.start();
+
+            // サーバーが立ち上がるまで少し待機（必要に応じて調整）
+            Thread.sleep(2000);
+
+        } catch (IOException | InterruptedException e) {
             e.printStackTrace();
-            throw new RuntimeException("サーバーからのワールドデータの取得に失敗しました。");
+            throw new RuntimeException("内蔵サーバーの起動に失敗しました。");
         }
+    }
+
+    private World fetchWorldFromServer() {
+        // サーバーが立ち上がるまで何度か接続をトライする親切設計
+        int maxRetries = 10;
+        int attempts = 0;
+
+        while (attempts < maxRetries) {
+            try {
+                System.out.println("Connecting to server (Attempt " + (attempts + 1) + ")...");
+                Socket socket = new Socket("localhost", 25565);
+                DataInputStream in = new DataInputStream(socket.getInputStream());
+
+                int sizeX = in.readInt();
+                int sizeY = in.readInt();
+                int sizeZ = in.readInt();
+
+                int[][][] loadedData = new int[sizeX][sizeY][sizeZ];
+                for (int x = 0; x < sizeX; x++) {
+                    for (int y = 0; y < sizeY; y++) {
+                        for (int z = 0; z < sizeZ; z++) {
+                            loadedData[x][y][z] = in.readInt();
+                        }
+                    }
+                }
+
+                socket.close();
+                System.out.println("World data received from server!");
+                return new World(sizeX, sizeY, sizeZ, loadedData);
+
+            } catch (IOException e) {
+                attempts++;
+                if (attempts >= maxRetries) {
+                    throw new RuntimeException("サーバーへの接続に失敗しました。", e);
+                }
+                try {
+                    Thread.sleep(1000); // 1秒待って再トライ
+                } catch (InterruptedException ignored) {}
+            }
+        }
+        throw new RuntimeException("サーバーからのワールドデータの取得に失敗しました。");
     }
 
     private void loop() {
@@ -164,22 +212,23 @@ public class ClientLauncher {
 
             // 状態に応じた処理の分岐
             if (currentState == GameState.MENU) {
-                // メニュー画面中の入力判定（例: Enterキーでゲーム開始）
-                if (keys[GLFW_KEY_ENTER]) {
-                    // 1. サーバーからワールドデータを取得
+                // Sキー: 内蔵サーバーを起動して接続（シングルプレイ）
+                if (keys[GLFW_KEY_S]) {
+                    extractAndStartServer();
                     world = fetchWorldFromServer();
-
-                    // 2. 状態をプレイ中に変更
                     currentState = GameState.PLAYING;
-
-                    // 3. マウスを非表示・ロックして視点移動できるようにする
                     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-
-                    // マウス位置の急変動を防ぐリセット
+                    firstMouse = true;
+                }
+                // Mキー: サーバーは起動せず、そのまま接続（マルチプレイ）
+                else if (keys[GLFW_KEY_M]) {
+                    world = fetchWorldFromServer();
+                    currentState = GameState.PLAYING;
+                    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
                     firstMouse = true;
                 }
 
-                // メニュー画面の描画（今は背景色でクリアするだけ）
+                // メニュー画面の描画
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
             } else if (currentState == GameState.PLAYING) {
@@ -194,6 +243,12 @@ public class ClientLauncher {
     }
 
     private void cleanup() {
+        // クライアント終了時に、自分で起動した内蔵サーバープロセスがあれば一緒に終了させる
+        if (serverProcess != null && serverProcess.isAlive()) {
+            System.out.println("Stopping embedded server process...");
+            serverProcess.destroy();
+        }
+
         renderer.cleanup();
 
         glfwFreeCallbacks(window);
