@@ -28,8 +28,13 @@ import static org.lwjgl.opengl.GL30.*;
 
 public class Renderer {
     private int shaderProgram;
+
     private int vao;
-    private int vbo; // ← フィールドとして保持するように追加！
+    private int vbo;
+
+    private int playerVao;
+    private int playerVbo;
+
     private DoubleBuffer matrixBuffer;
 
     private int uiVao;
@@ -177,15 +182,81 @@ public class Renderer {
 
         vao = glGenVertexArrays();
         glBindVertexArray(vao);
-        vbo = glGenBuffers(); // ← フィールドに代入
+        vbo = glGenBuffers();
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
         glBufferData(GL_ARRAY_BUFFER, vertices, GL_STATIC_DRAW);
 
-        int stride = 6 * Double.BYTES; // Long.BYTES から Double.BYTES に修正
+        // ★【追加】ブロック用のVAOにもデータの読み方を教える
+        int stride = 6 * Double.BYTES;
         glVertexAttribPointer(0, 3, GL_DOUBLE, false, stride, 0);
         glEnableVertexAttribArray(0);
         glVertexAttribPointer(1, 3, GL_DOUBLE, false, stride, 3 * Double.BYTES);
         glEnableVertexAttribArray(1);
+
+
+        double[] pTopColor    = {0.1d, 0.5d, 0.9d}; // 明るい青
+        double[] pSideColor   = {0.2d, 0.4d, 0.8d}; // 青
+        double[] pBottomColor = {0.05d, 0.2d, 0.5d}; // 濃い青
+
+        double[] playerVertices = {
+                // （ブロックと同じ立方体の頂点データですが、色を上記のプレイヤー用カラーにします）
+                -size, -size,  size,  pSideColor[0], pSideColor[1], pSideColor[2],
+                size, -size,  size,  pSideColor[0], pSideColor[1], pSideColor[2],
+                size,  size,  size,  pSideColor[0], pSideColor[1], pSideColor[2],
+                size,  size,  size,  pSideColor[0], pSideColor[1], pSideColor[2],
+                -size,  size,  size,  pSideColor[0], pSideColor[1], pSideColor[2],
+                -size, -size,  size,  pSideColor[0], pSideColor[1], pSideColor[2],
+
+                -size, -size, -size,  pSideColor[0], pSideColor[1], pSideColor[2],
+                -size,  size, -size,  pSideColor[0], pSideColor[1], pSideColor[2],
+                size,  size, -size,  pSideColor[0], pSideColor[1], pSideColor[2],
+                size,  size, -size,  pSideColor[0], pSideColor[1], pSideColor[2],
+                size, -size, -size,  pSideColor[0], pSideColor[1], pSideColor[2],
+                -size, -size, -size,  pSideColor[0], pSideColor[1], pSideColor[2],
+
+                -size,  size,  size,  pSideColor[0], pSideColor[1], pSideColor[2],
+                -size,  size, -size,  pSideColor[0], pSideColor[1], pSideColor[2],
+                -size, -size, -size,  pSideColor[0], pSideColor[1], pSideColor[2],
+                -size, -size, -size,  pSideColor[0], pSideColor[1], pSideColor[2],
+                -size, -size,  size,  pSideColor[0], pSideColor[1], pSideColor[2],
+                -size,  size,  size,  pSideColor[0], pSideColor[1], pSideColor[2],
+
+                size,  size,  size,  pSideColor[0], pSideColor[1], pSideColor[2],
+                size, -size,  size,  pSideColor[0], pSideColor[1], pSideColor[2],
+                size, -size, -size,  pSideColor[0], pSideColor[1], pSideColor[2],
+                size, -size, -size,  pSideColor[0], pSideColor[1], pSideColor[2],
+                size,  size, -size,  pSideColor[0], pSideColor[1], pSideColor[2],
+                size,  size,  size,  pSideColor[0], pSideColor[1], pSideColor[2],
+
+                -size,  size,  size,  pTopColor[0], pTopColor[1], pTopColor[2],
+                size,  size,  size,  pTopColor[0], pTopColor[1], pTopColor[2],
+                size,  size, -size,  pTopColor[0], pTopColor[1], pTopColor[2],
+                size,  size, -size,  pTopColor[0], pTopColor[1], pTopColor[2],
+                -size,  size, -size,  pTopColor[0], pTopColor[1], pTopColor[2],
+                -size,  size,  size,  pTopColor[0], pTopColor[1], pTopColor[2],
+
+                -size, -size,  size,  pBottomColor[0], pBottomColor[1], pBottomColor[2],
+                -size, -size, -size,  pBottomColor[0], pBottomColor[1], pBottomColor[2],
+                size, -size, -size,  pBottomColor[0], pBottomColor[1], pBottomColor[2],
+                size, -size, -size,  pBottomColor[0], pBottomColor[1], pBottomColor[2],
+                size, -size,  size,  pBottomColor[0], pBottomColor[1], pBottomColor[2],
+                -size, -size,  size,  pBottomColor[0], pBottomColor[1], pBottomColor[2]
+        };
+
+        playerVao = glGenVertexArrays();
+        glBindVertexArray(playerVao);
+        playerVbo = glGenBuffers();
+        glBindBuffer(GL_ARRAY_BUFFER, playerVbo);
+        glBufferData(GL_ARRAY_BUFFER, playerVertices, GL_STATIC_DRAW);
+
+        // ★【ここも重要】プレイヤー用のVAOにも同じように教える
+        glVertexAttribPointer(0, 3, GL_DOUBLE, false, stride, 0);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 3, GL_DOUBLE, false, stride, 3 * Double.BYTES);
+        glEnableVertexAttribArray(1);
+
+
+
 
         String vsSource = "#version 460 core\n" +
                 "layout (location = 0) in dvec3 aPos;\n" +
@@ -219,7 +290,7 @@ public class Renderer {
         glDeleteShader(fs);
     }
 
-    public void render(World world, Camera camera, Matrix4d projection) {
+    public void render(World world, Camera camera, Matrix4d projection, java.util.Map<Integer, org.joml.Vector3d> otherPlayers) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         glUseProgram(shaderProgram);
@@ -227,18 +298,19 @@ public class Renderer {
 
         Matrix4d view = camera.getViewMatrix();
         Matrix4d pv = new Matrix4d();
-        projection.mul(view, pv); // ← Projection と View の掛け算はループの外で1回だけ計算！
+        projection.mul(view, pv); // Projection と View の掛け算
 
         Matrix4d mvp = new Matrix4d();
         Matrix4d model = new Matrix4d();
         int mvpLocation = glGetUniformLocation(shaderProgram, "mvp");
 
+        // 1. ワールドブロックの描画（いままで通り）
         for (int x = 0; x < World.SIZE_X; x++) {
             for (int y = 0; y < World.SIZE_Y; y++) {
                 for (int z = 0; z < World.SIZE_Z; z++) {
                     if (world.getBlock(x, y, z) > 0) {
                         model.identity().translation(x, y, z);
-                        pv.mul(model, mvp); // 共通のPV行列にモデル行列を掛ける
+                        pv.mul(model, mvp);
 
                         mvp.get(matrixBuffer);
                         glUniformMatrix4dv(mvpLocation, false, matrixBuffer);
@@ -246,6 +318,21 @@ public class Renderer {
                         glDrawArrays(GL_TRIANGLES, 0, 36);
                     }
                 }
+            }
+        }
+
+// 2. 他のプレイヤー（青い立方体）の描画
+        if (otherPlayers != null && !otherPlayers.isEmpty()) {
+            glBindVertexArray(playerVao); // ★ プレイヤー用のVAOに切り替え！
+
+            for (org.joml.Vector3d pos : otherPlayers.values()) {
+                model.identity().translation(pos.x, pos.y, pos.z);
+                pv.mul(model, mvp);
+
+                mvp.get(matrixBuffer);
+                glUniformMatrix4dv(mvpLocation, false, matrixBuffer);
+
+                glDrawArrays(GL_TRIANGLES, 0, 36);
             }
         }
     }
@@ -258,6 +345,9 @@ public class Renderer {
         glDeleteProgram(uiShaderProgram);
         glDeleteVertexArrays(uiVao);
         glDeleteBuffers(uiVbo);
+
+        glDeleteVertexArrays(playerVao);
+        glDeleteBuffers(playerVbo);
 
         if (matrixBuffer != null) {
             MemoryUtil.memFree(matrixBuffer);

@@ -18,22 +18,28 @@ package com.mc1510ty.LWJGLVoxelGame.Server;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class Main {
     private static final int WORLD_SIZE_X = 16;
     private static final int WORLD_SIZE_Y = 4;
     private static final int WORLD_SIZE_Z = 16;
 
+    // 接続中の全クライアントの出力ストリームを保持するリスト
+    private static final List<DataOutputStream> clients = new CopyOnWriteArrayList<>();
+
+    private static AtomicInteger idCounter = new AtomicInteger(0);
+
     public static void main(String[] args) {
         System.out.println("Starting LWJGLVoxelGame Server...");
 
-        // 引数からワールドデータのファイルパスを取得（指定がない場合はデフォルト名）
         String saveFilePath = (args.length > 0) ? args[0] : "world.dat";
         File worldFile = new File(saveFilePath);
 
         int[][][] worldData = new int[WORLD_SIZE_X][WORLD_SIZE_Y][WORLD_SIZE_Z];
 
-        // 開始時：ファイルが存在すれば読み込み、なければデフォルト生成
         if (worldFile.exists()) {
             try (DataInputStream fileIn = new DataInputStream(new FileInputStream(worldFile))) {
                 int sizeX = fileIn.readInt();
@@ -57,7 +63,6 @@ public class Main {
             generateDefaultWorld(worldData);
         }
 
-        // 終了時（シャットダウン時）にワールドデータをファイルへ保存するフックを登録
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             saveWorld(worldFile, worldData);
         }));
@@ -70,35 +75,24 @@ public class Main {
                 System.out.println("Client connected: " + clientSocket.getRemoteSocketAddress());
 
                 new Thread(() -> {
+                    int myId = idCounter.incrementAndGet();
+                    DataOutputStream out = null;
                     try {
-                        DataOutputStream out = new DataOutputStream(clientSocket.getOutputStream());
+                        out = new DataOutputStream(clientSocket.getOutputStream());
                         DataInputStream in = new DataInputStream(clientSocket.getInputStream());
 
-                        // 1. ワールドのサイズを送信
-                        out.writeInt(WORLD_SIZE_X);
-                        out.writeInt(WORLD_SIZE_Y);
-                        out.writeInt(WORLD_SIZE_Z);
+                        // リストに登録
+                        clients.add(out);
 
-                        // 2. ブロックデータを順番に送信
-                        for (int x = 0; x < WORLD_SIZE_X; x++) {
-                            for (int y = 0; y < WORLD_SIZE_Y; y++) {
-                                for (int z = 0; z < WORLD_SIZE_Z; z++) {
-                                    out.writeInt(worldData[x][y][z]);
-                                }
-                            }
-                        }
-                        out.flush();
+                        // ★ 共通化したメソッドを使ってワールドデータを送信
+                        sendWorldData(out, worldData);
                         System.out.println("World data sent to client successfully.");
 
                         // 3. 接続を維持しつつ、クライアントからの変更通知を待ち受ける
                         while (!clientSocket.isClosed()) {
-                            int packetType = in.readInt(); // パケットの種類を読み取る
+                            int packetType = in.readInt();
 
-                            if (packetType == -1) {
-                                // 終了シグナル
-                                System.out.println("Shutdown request received from client.");
-                                System.exit(0);
-                            } else if (packetType == 1) {
+                            if (packetType == 1) {
                                 // ブロック変更のパケット
                                 int x = in.readInt();
                                 int y = in.readInt();
@@ -108,19 +102,44 @@ public class Main {
                                 if (x >= 0 && x < WORLD_SIZE_X && y >= 0 && y < WORLD_SIZE_Y && z >= 0 && z < WORLD_SIZE_Z) {
                                     worldData[x][y][z] = id;
                                     System.out.println("Block updated at (" + x + ", " + y + ", " + z + ") to ID: " + id);
+
+                                    // ★ ブロックが変更されたら、接続中の全クライアントに最新のワールド全体を送信する
+                                    for (DataOutputStream clientOut : clients) {
+                                        try {
+                                            sendWorldData(clientOut, worldData);
+                                        } catch (IOException e) {
+                                            // 送信失敗時はスルー
+                                        }
+                                    }
                                 }
                             } else if (packetType == 2) {
-                                // プレイヤーの位置情報パケット（これから実装！）
-                                // float x = in.readFloat();
-                                // float y = in.readFloat();
-                                // float z = in.readFloat();
-                                // ...
+                                double px = in.readDouble();
+                                double py = in.readDouble();
+                                double pz = in.readDouble();
+
+                                // 自分以外のクライアントに「ID」と「座標」を転送する
+                                for (DataOutputStream clientOut : clients) {
+                                    if (clientOut != out) {
+                                        try {
+                                            clientOut.writeInt(2); // パケットID 2
+                                            clientOut.writeInt(myId); // 誰のIDか一緒に送る
+                                            clientOut.writeDouble(px);
+                                            clientOut.writeDouble(py);
+                                            clientOut.writeDouble(pz);
+                                            clientOut.flush();
+                                        } catch (IOException e) {
+                                        }
+                                    }
+                                }
                             }
                         }
 
                     } catch (IOException e) {
                         System.out.println("Client disconnected: " + clientSocket.getRemoteSocketAddress());
                     } finally {
+                        if (out != null) {
+                            clients.remove(out); // リストから削除
+                        }
                         try {
                             clientSocket.close();
                         } catch (IOException e) {
@@ -134,10 +153,27 @@ public class Main {
         }
     }
 
+    // ★ ワールドデータを送信する共通メソッド
+    private static void sendWorldData(DataOutputStream out, int[][][] worldData) throws IOException {
+        out.writeInt(3); // パケットID 3: ワールド全体データ同期
+        out.writeInt(WORLD_SIZE_X);
+        out.writeInt(WORLD_SIZE_Y);
+        out.writeInt(WORLD_SIZE_Z);
+
+        for (int x = 0; x < WORLD_SIZE_X; x++) {
+            for (int y = 0; y < WORLD_SIZE_Y; y++) {
+                for (int z = 0; z < WORLD_SIZE_Z; z++) {
+                    out.writeInt(worldData[x][y][z]);
+                }
+            }
+        }
+        out.flush();
+    }
+
     private static void generateDefaultWorld(int[][][] worldData) {
         for (int x = 0; x < WORLD_SIZE_X; x++) {
             for (int z = 0; z < WORLD_SIZE_Z; z++) {
-                worldData[x][0][z] = 1; // 床
+                worldData[x][0][z] = 1;
             }
         }
         worldData[8][1][8] = 1;
