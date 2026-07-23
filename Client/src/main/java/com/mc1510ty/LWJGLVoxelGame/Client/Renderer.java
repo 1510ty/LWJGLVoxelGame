@@ -16,10 +16,12 @@
 package com.mc1510ty.LWJGLVoxelGame.Client;
 
 import org.joml.Matrix4d;
+import org.joml.Vector3d;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 
 import java.nio.DoubleBuffer;
+import java.util.Map;
 
 import static org.lwjgl.opengl.ARBGPUShaderFP64.*;
 import static org.lwjgl.opengl.GL11.*;
@@ -328,7 +330,7 @@ public class Renderer {
         glDeleteShader(fs);
     }
 
-    public void render(World world, Camera camera, Matrix4d projection, java.util.Map<Integer, org.joml.Vector3d> otherPlayers) {
+    public void render(World world, Camera camera, Matrix4d projection, Map<Long, Vector3d> otherPlayers) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         glUseProgram(shaderProgram);

@@ -25,7 +25,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class Main {
     private static final int CHUNK_SIZE_X = 16;
@@ -35,7 +35,7 @@ public class Main {
     // 接続中の全クライアントの出力ストリームを保持するリスト
     private static final List<DataOutputStream> clients = new CopyOnWriteArrayList<>();
 
-    private static AtomicInteger idCounter = new AtomicInteger(0);
+    private static AtomicLong idCounter = new AtomicLong(0);
 
     public static void main(String[] args) {
         System.out.println("Starting LWJGLVoxelGame Server...");
@@ -133,7 +133,7 @@ public class Main {
                 System.out.println("Client connected: " + clientSocket.getRemoteSocketAddress());
 
                 new Thread(() -> {
-                    int myId = idCounter.incrementAndGet();
+                    long myId = idCounter.incrementAndGet();
                     DataOutputStream out = null;
                     try {
                         out = new DataOutputStream(clientSocket.getOutputStream());
@@ -180,7 +180,7 @@ public class Main {
                                     if (clientOut != out) {
                                         try {
                                             clientOut.writeInt(2); // パケットID 2
-                                            clientOut.writeInt(myId); // 誰のIDか一緒に送る
+                                            clientOut.writeLong(myId); // 誰のIDか一緒に送る
                                             clientOut.writeDouble(px);
                                             clientOut.writeDouble(py);
                                             clientOut.writeDouble(pz);

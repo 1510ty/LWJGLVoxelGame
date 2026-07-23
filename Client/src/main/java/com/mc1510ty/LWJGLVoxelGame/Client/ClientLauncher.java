@@ -69,7 +69,7 @@ public class ClientLauncher {
 
     private String worldFilePath;
 
-    private final java.util.Map<Integer, Vector3d> otherPlayers = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.Map<Long, Vector3d> otherPlayers = new java.util.concurrent.ConcurrentHashMap<>();
 
     private double lastSendTime = 0;
 
@@ -339,7 +339,7 @@ public class ClientLauncher {
                                     }
                                 }
                             } else if (packetType == 2) {
-                                int targetId = in.readInt();
+                                long targetId = in.readLong();
                                 double px = in.readDouble();
                                 double py = in.readDouble();
                                 double pz = in.readDouble();
