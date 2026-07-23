@@ -40,8 +40,19 @@ public class Main {
     public static void main(String[] args) {
         System.out.println("Starting LWJGLVoxelGame Server...");
 
+        BlockNameIDMgr blocknameidmgr = new BlockNameIDMgr();
+
+        blocknameidmgr.init();
+        IO.println(blocknameidmgr.getId("lwjglvoxelgame:grass_block"));
+        IO.println(blocknameidmgr.getName(2));
+
+        System.exit(0);
+
         String worldFilePath = "world.dat"; // デフォルト
         boolean isIntegrated = false;
+
+
+
 
         // 引数の解析
         for (String arg : args) {
