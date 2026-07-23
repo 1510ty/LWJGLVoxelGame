@@ -410,6 +410,8 @@ public class ClientLauncher {
                 }
 
                 renderer.render(world, camera, projection, otherPlayers);
+
+                renderer.renderCrosshair(WIDTH, HEIGHT);
             }
 
             glfwSwapBuffers(window);

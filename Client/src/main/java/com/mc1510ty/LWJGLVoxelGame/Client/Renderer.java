@@ -98,6 +98,44 @@ public class Renderer {
         glDeleteShader(fs);
     }
 
+    public void renderCrosshair(int screenWidth, int screenHeight) {
+        glUseProgram(uiShaderProgram);
+        glBindVertexArray(uiVao);
+
+        Matrix4d ortho = new Matrix4d().ortho2D(0, screenWidth, screenHeight, 0);
+        int projLoc = glGetUniformLocation(uiShaderProgram, "projection");
+
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            DoubleBuffer fb = stack.mallocDouble(16);
+            ortho.get(fb);
+            glUniformMatrix4dv(projLoc, false, fb);
+        }
+
+        double centerX = screenWidth / 2.0;
+        double centerY = screenHeight / 2.0;
+        double size = 10.0;      // 十字の線の長さ（中心からの片側、または全体サイズ）
+        double thickness = 2.0;  // 線の太さ
+
+        int colorLoc = glGetUniformLocation(uiShaderProgram, "textColor");
+        glUniform3f(colorLoc, 1.0f, 1.0f, 1.0f); // 白色で表示
+
+        glDisable(GL_DEPTH_TEST);
+        glDisable(GL_CULL_FACE);
+
+        // 横棒の描画
+        glUniform2d(glGetUniformLocation(uiShaderProgram, "position"), centerX - size, centerY - thickness / 2.0);
+        glUniform2d(glGetUniformLocation(uiShaderProgram, "scale"), size * 2.0, thickness);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        // 縦棒の描画
+        glUniform2d(glGetUniformLocation(uiShaderProgram, "position"), centerX - thickness / 2.0, centerY - size);
+        glUniform2d(glGetUniformLocation(uiShaderProgram, "scale"), thickness, size * 2.0);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        glEnable(GL_CULL_FACE);
+        glEnable(GL_DEPTH_TEST);
+    }
+
     public void renderButton(Button button, boolean isHovered, int screenWidth, int screenHeight) {
         glUseProgram(uiShaderProgram);
         glBindVertexArray(uiVao);
