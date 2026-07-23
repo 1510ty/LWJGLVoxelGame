@@ -28,9 +28,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class Main {
-    private static final int WORLD_SIZE_X = 16;
-    private static final int WORLD_SIZE_Y = 4;
-    private static final int WORLD_SIZE_Z = 16;
+    private static final int CHUNK_SIZE_X = 16;
+    private static final int CHUNK_SIZE_Y = 4;
+    private static final int CHUNK_SIZE_Z = 16;
 
     // 接続中の全クライアントの出力ストリームを保持するリスト
     private static final List<DataOutputStream> clients = new CopyOnWriteArrayList<>();
@@ -96,7 +96,7 @@ public class Main {
 
         File worldFile = new File(worldFilePath);
 
-        int[][][] worldData = new int[WORLD_SIZE_X][WORLD_SIZE_Y][WORLD_SIZE_Z];
+        int[][][] worldData = new int[CHUNK_SIZE_X][CHUNK_SIZE_Y][CHUNK_SIZE_Z];
 
         if (worldFile.exists()) {
             try (DataInputStream fileIn = new DataInputStream(new FileInputStream(worldFile))) {
@@ -104,9 +104,9 @@ public class Main {
                 int sizeY = fileIn.readInt();
                 int sizeZ = fileIn.readInt();
 
-                for (int x = 0; x < Math.min(sizeX, WORLD_SIZE_X); x++) {
-                    for (int y = 0; y < Math.min(sizeY, WORLD_SIZE_Y); y++) {
-                        for (int z = 0; z < Math.min(sizeZ, WORLD_SIZE_Z); z++) {
+                for (int x = 0; x < Math.min(sizeX, CHUNK_SIZE_X); x++) {
+                    for (int y = 0; y < Math.min(sizeY, CHUNK_SIZE_Y); y++) {
+                        for (int z = 0; z < Math.min(sizeZ, CHUNK_SIZE_Z); z++) {
                             worldData[x][y][z] = fileIn.readInt();
                         }
                     }
@@ -157,7 +157,7 @@ public class Main {
                                 int z = in.readInt();
                                 int id = in.readInt();
 
-                                if (x >= 0 && x < WORLD_SIZE_X && y >= 0 && y < WORLD_SIZE_Y && z >= 0 && z < WORLD_SIZE_Z) {
+                                if (x >= 0 && x < CHUNK_SIZE_X && y >= 0 && y < CHUNK_SIZE_Y && z >= 0 && z < CHUNK_SIZE_Z) {
                                     worldData[x][y][z] = id;
                                     System.out.println("Block updated at (" + x + ", " + y + ", " + z + ") to ID: " + id);
 
@@ -214,13 +214,13 @@ public class Main {
     // ★ ワールドデータを送信する共通メソッド
     private static void sendWorldData(DataOutputStream out, int[][][] worldData) throws IOException {
         out.writeInt(3); // パケットID 3: ワールド全体データ同期
-        out.writeInt(WORLD_SIZE_X);
-        out.writeInt(WORLD_SIZE_Y);
-        out.writeInt(WORLD_SIZE_Z);
+        out.writeInt(CHUNK_SIZE_X);
+        out.writeInt(CHUNK_SIZE_Y);
+        out.writeInt(CHUNK_SIZE_Z);
 
-        for (int x = 0; x < WORLD_SIZE_X; x++) {
-            for (int y = 0; y < WORLD_SIZE_Y; y++) {
-                for (int z = 0; z < WORLD_SIZE_Z; z++) {
+        for (int x = 0; x < CHUNK_SIZE_X; x++) {
+            for (int y = 0; y < CHUNK_SIZE_Y; y++) {
+                for (int z = 0; z < CHUNK_SIZE_Z; z++) {
                     out.writeInt(worldData[x][y][z]);
                 }
             }
@@ -229,8 +229,8 @@ public class Main {
     }
 
     private static void generateDefaultWorld(int[][][] worldData) {
-        for (int x = 0; x < WORLD_SIZE_X; x++) {
-            for (int z = 0; z < WORLD_SIZE_Z; z++) {
+        for (int x = 0; x < CHUNK_SIZE_X; x++) {
+            for (int z = 0; z < CHUNK_SIZE_Z; z++) {
                 worldData[x][0][z] = 1;
             }
         }
@@ -241,13 +241,13 @@ public class Main {
 
     private static void saveWorld(File file, int[][][] worldData) {
         try (DataOutputStream fileOut = new DataOutputStream(new FileOutputStream(file))) {
-            fileOut.writeInt(WORLD_SIZE_X);
-            fileOut.writeInt(WORLD_SIZE_Y);
-            fileOut.writeInt(WORLD_SIZE_Z);
+            fileOut.writeInt(CHUNK_SIZE_X);
+            fileOut.writeInt(CHUNK_SIZE_Y);
+            fileOut.writeInt(CHUNK_SIZE_Z);
 
-            for (int x = 0; x < WORLD_SIZE_X; x++) {
-                for (int y = 0; y < WORLD_SIZE_Y; y++) {
-                    for (int z = 0; z < WORLD_SIZE_Z; z++) {
+            for (int x = 0; x < CHUNK_SIZE_X; x++) {
+                for (int y = 0; y < CHUNK_SIZE_Y; y++) {
+                    for (int z = 0; z < CHUNK_SIZE_Z; z++) {
                         fileOut.writeInt(worldData[x][y][z]);
                     }
                 }
