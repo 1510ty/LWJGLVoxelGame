@@ -35,7 +35,7 @@ import static org.lwjgl.system.MemoryUtil.NULL;
 
 public class ClientLauncher {
 
-    enum GameState {
+    public enum GameState {
         MENU,
         ADDRESS_INPUT, // アドレス入力画面
         PLAYING
@@ -44,7 +44,22 @@ public class ClientLauncher {
     private GameState currentState = GameState.MENU;
     private StringBuilder addressInput = new StringBuilder("localhost:35565");
 
+    private ClientNetwork network = new ClientNetwork();
+
     private long window;
+
+    public record ConnectionResult(
+            World world,
+            ClientLauncher.GameState currentState,
+            boolean firstMouse,
+            Socket socket,
+            DataOutputStream serverOut) {}
+    public record WorldConnectionResult(
+            World world,
+            Socket socket,
+            DataOutputStream serverOut
+    ) {}
+
 
     private static final int WIDTH = 1280;
     private static final int HEIGHT = 720;
@@ -138,7 +153,10 @@ public class ClientLauncher {
             if (currentState == GameState.MENU && button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
                 if (singlePlayerButton != null && singlePlayerButton.isHovered(mouseX[0], mouseY[0])) {
                     extractAndStartServer();
-                    world = fetchWorldFromServer("localhost", 35565);
+                    ClientLauncher.WorldConnectionResult result = network.fetchWorldFromServer("localhost", 35565,serverSocket,serverOut, otherPlayers);
+                    this.world = result.world();
+                    this.serverSocket = result.socket();
+                    this.serverOut = result.serverOut();
                     currentState = GameState.PLAYING;
                     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
                     firstMouse = true;
@@ -151,10 +169,10 @@ public class ClientLauncher {
                 if (hit.hit) {
                     if (button == GLFW_MOUSE_BUTTON_LEFT) {
                         world.setBlock(hit.x, hit.y, hit.z, 0);
-                        sendBlockChange(hit.x, hit.y, hit.z, 0);
+                        network.sendBlockChange(hit.x, hit.y, hit.z, 0, serverOut);
                     } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
                         world.setBlock(hit.prevX, hit.prevY, hit.prevZ, 1);
-                        sendBlockChange(hit.prevX, hit.prevY, hit.prevZ, 1);
+                        network.sendBlockChange(hit.prevX, hit.prevY, hit.prevZ, 1, serverOut);
                     }
                 }
             }
@@ -178,10 +196,15 @@ public class ClientLauncher {
 
             // アドレス入力中の特殊キー処理（バックスペースとエンター）
             if (currentState == GameState.ADDRESS_INPUT && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
-                if (key == GLFW_KEY_BACKSPACE && addressInput.length() > 0) {
+                if (key == GLFW_KEY_BACKSPACE && !addressInput.isEmpty()) {
                     addressInput.deleteCharAt(addressInput.length() - 1);
                 } else if (key == GLFW_KEY_ENTER) {
-                    connectToServerWithInput();
+                    ConnectionResult result = network.connectToServerWithInput(addressInput,window,world,currentState,firstMouse,serverSocket,serverOut, otherPlayers);
+                    this.world = result.world();
+                    this.currentState = result.currentState();
+                    this.firstMouse = result.firstMouse();
+                    this.serverSocket = result.socket();
+                    this.serverOut = result.serverOut();
                 }
             }
 
@@ -262,111 +285,6 @@ public class ClientLauncher {
         }
     }
 
-    // 入力された文字列をパースしてサーバーに接続するメソッド
-    private void connectToServerWithInput() {
-        String inputStr = addressInput.toString().trim();
-        String host = "localhost";
-        int port = 35565;
-
-        if (inputStr.contains(":")) {
-            String[] parts = inputStr.split(":", 2);
-            host = parts[0];
-            try {
-                port = Integer.parseInt(parts[1]);
-            } catch (NumberFormatException e) {
-                System.out.println("ポート番号の形式が正しくないため、デフォルトの 35565 を使用します。");
-            }
-        } else if (!inputStr.isEmpty()) {
-            host = inputStr;
-        }
-
-        try {
-            world = fetchWorldFromServer(host, port);
-            currentState = GameState.PLAYING;
-            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-            firstMouse = true;
-        } catch (Exception e) {
-            System.out.println("サーバーへの接続に失敗しました: " + e.getMessage());
-        }
-    }
-
-    private World fetchWorldFromServer(String host, int port) {
-        int maxRetries = 10;
-        int attempts = 0;
-
-        while (attempts < maxRetries) {
-            try {
-                System.out.println("Connecting to " + host + ":" + port + " (Attempt " + (attempts + 1) + ")...");
-
-                serverSocket = new Socket(host, port);
-                DataInputStream in = new DataInputStream(serverSocket.getInputStream());
-                serverOut = new DataOutputStream(serverSocket.getOutputStream());
-
-                int initialPacketType = in.readInt();
-                int sizeX = in.readInt();
-                int sizeY = in.readInt();
-                int sizeZ = in.readInt();
-
-                int[][][] loadedData = new int[sizeX][sizeY][sizeZ];
-                for (int x = 0; x < sizeX; x++) {
-                    for (int y = 0; y < sizeY; y++) {
-                        for (int z = 0; z < sizeZ; z++) {
-                            loadedData[x][y][z] = in.readInt();
-                        }
-                    }
-                }
-
-                World createdWorld = new World(sizeX, sizeY, sizeZ, loadedData);
-
-                new Thread(() -> {
-                    try {
-                        while (!serverSocket.isClosed()) {
-                            int packetType = in.readInt();
-
-                            if (packetType == 3) {
-                                int sX = in.readInt();
-                                int sY = in.readInt();
-                                int sZ = in.readInt();
-
-                                for (int x = 0; x < sX; x++) {
-                                    for (int y = 0; y < sY; y++) {
-                                        for (int z = 0; z < sZ; z++) {
-                                            int blockId = in.readInt();
-                                            if (createdWorld != null) {
-                                                createdWorld.setBlock(x, y, z, blockId);
-                                            }
-                                        }
-                                    }
-                                }
-                            } else if (packetType == 2) {
-                                long targetId = in.readLong();
-                                double px = in.readDouble();
-                                double py = in.readDouble();
-                                double pz = in.readDouble();
-
-                                otherPlayers.computeIfAbsent(targetId, id -> new Vector3d()).set(px, py, pz);
-                            }
-                        }
-                    } catch (IOException e) {
-                        System.out.println("Disconnected from server.");
-                    }
-                }, "Client-Packet-Receiver").start();
-
-                System.out.println("World data received from server and synchronization thread started!");
-                return createdWorld;
-
-            } catch (IOException e) {
-                attempts++;
-                if (attempts >= maxRetries) {
-                    throw new RuntimeException("サーバーへの接続に失敗しました。", e);
-                }
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException ignored) {}
-            }
-        }
-        throw new RuntimeException("サーバーからのワールドデータの取得に失敗しました。");
-    }
 
     private void loop() {
         Matrix4d projection = new Matrix4d().perspective(Math.toRadians(45.0f), (double) WIDTH / HEIGHT, 0.1f, 100.0f);
@@ -405,7 +323,7 @@ public class ClientLauncher {
 
                 double currentTime = glfwGetTime();
                 if (currentTime - lastSendTime > 0.05) {
-                    sendPosition(camera.pos.x, camera.pos.y, camera.pos.z);
+                    network.sendPosition(camera.pos.x, camera.pos.y, camera.pos.z, serverOut);
                     lastSendTime = currentTime;
                 }
 
@@ -502,30 +420,5 @@ public class ClientLauncher {
         return result;
     }
 
-    private void sendBlockChange(int x, int y, int z, int id) {
-        if (serverOut != null) {
-            try {
-                serverOut.writeInt(1);
-                serverOut.writeInt(x);
-                serverOut.writeInt(y);
-                serverOut.writeInt(z);
-                serverOut.writeInt(id);
-                serverOut.flush();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-    }
 
-    private void sendPosition(double x, double y, double z) {
-        if (serverOut != null) {
-            try {
-                serverOut.writeInt(2);
-                serverOut.writeDouble(x);
-                serverOut.writeDouble(y);
-                serverOut.writeDouble(z);
-                serverOut.flush();
-            } catch (IOException e) {}
-        }
-    }
 }
