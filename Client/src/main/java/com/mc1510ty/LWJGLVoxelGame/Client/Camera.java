@@ -115,4 +115,42 @@ public class Camera {
     public Matrix4d getViewMatrix() {
         return new Matrix4d().lookAt(pos, new Vector3d(pos).add(front), up);
     }
+
+    public RaycastResult raycast(double maxDistance, World world, Camera camera) {
+        RaycastResult result = new RaycastResult();
+        if (world == null) return result;
+
+        Vector3d rayPos = new Vector3d(camera.pos);
+        Vector3d rayDir = new Vector3d(camera.front);
+
+        double step = 0.05f;
+        int lastX = (int) Math.round(rayPos.x);
+        int lastY = (int) Math.round(rayPos.y);
+        int lastZ = (int) Math.round(rayPos.z);
+
+        for (double d = 0; d < maxDistance; d += step) {
+            rayPos.add(new Vector3d(rayDir).mul(step));
+
+            int bx = (int) Math.round(rayPos.x);
+            int by = (int) Math.round(rayPos.y);
+            int bz = (int) Math.round(rayPos.z);
+
+            if (bx != lastX || by != lastY || bz != lastZ) {
+                if (world.getBlock(bx, by, bz) > 0) {
+                    result.hit = true;
+                    result.x = bx;
+                    result.y = by;
+                    result.z = bz;
+                    result.prevX = lastX;
+                    result.prevY = lastY;
+                    result.prevZ = lastZ;
+                    return result;
+                }
+                lastX = bx;
+                lastY = by;
+                lastZ = bz;
+            }
+        }
+        return result;
+    }
 }

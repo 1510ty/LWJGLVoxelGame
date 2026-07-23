@@ -25,8 +25,6 @@ import org.lwjgl.system.MemoryStack;
 import java.io.*;
 import java.net.Socket;
 import java.nio.IntBuffer;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
 
 import static org.lwjgl.glfw.Callbacks.glfwFreeCallbacks;
 import static org.lwjgl.glfw.GLFW.*;
@@ -45,6 +43,8 @@ public class ClientLauncher {
     private StringBuilder addressInput = new StringBuilder("localhost:35565");
 
     private ClientNetwork network = new ClientNetwork();
+    private integratedServerMgr integratedservermgr = new integratedServerMgr();
+
 
     private long window;
 
@@ -152,7 +152,7 @@ public class ClientLauncher {
         glfwSetMouseButtonCallback(window, (w, button, action, mods) -> {
             if (currentState == GameState.MENU && button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
                 if (singlePlayerButton != null && singlePlayerButton.isHovered(mouseX[0], mouseY[0])) {
-                    extractAndStartServer();
+                    serverProcess = integratedservermgr.extractAndStartServer(worldFilePath,serverProcess);
                     ClientLauncher.WorldConnectionResult result = network.fetchWorldFromServer("localhost", 35565,serverSocket,serverOut, otherPlayers);
                     this.world = result.world();
                     this.serverSocket = result.socket();
@@ -165,7 +165,7 @@ public class ClientLauncher {
                     currentState = GameState.ADDRESS_INPUT;
                 }
             } else if (currentState == GameState.PLAYING && action == GLFW_PRESS) {
-                RaycastResult hit = raycast(6.0f);
+                RaycastResult hit = camera.raycast(6.0f,world,camera);
                 if (hit.hit) {
                     if (button == GLFW_MOUSE_BUTTON_LEFT) {
                         world.setBlock(hit.x, hit.y, hit.z, 0);
@@ -248,42 +248,6 @@ public class ClientLauncher {
         multiPlayerButton  = new Button(440, 330, 400, 50, "Multi Player");
     }
 
-    private void extractAndStartServer() {
-        try {
-            System.out.println("Extracting embedded server.jar...");
-            InputStream in = ClientLauncher.class.getResourceAsStream("/server.jar");
-            if (in == null) {
-                throw new RuntimeException("内蔵された server.jar が見つかりません。");
-            }
-
-            File tempDir = new File(System.getProperty("java.io.tmpdir"), "voxelgame_server");
-            if (!tempDir.exists()) {
-                tempDir.mkdirs();
-            }
-            File serverFile = new File(tempDir, "server.jar");
-            Files.copy(in, serverFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-
-            System.out.println("Starting embedded server process with save path: " + worldFilePath);
-            String javaPath = System.getProperty("java.home") + "/bin/java";
-
-            ProcessBuilder pb = new ProcessBuilder(
-                    javaPath,
-                    "-jar",
-                    serverFile.getAbsolutePath(),
-                    worldFilePath,
-                    "integrated" // ★ ここにオプションを追加！
-            );
-
-            pb.inheritIO();
-            serverProcess = pb.start();
-
-            Thread.sleep(2000);
-
-        } catch (IOException | InterruptedException e) {
-            e.printStackTrace();
-            throw new RuntimeException("内蔵サーバーの起動に失敗しました。");
-        }
-    }
 
 
     private void loop() {
@@ -382,43 +346,6 @@ public class ClientLauncher {
         }
     }
 
-    private RaycastResult raycast(double maxDistance) {
-        RaycastResult result = new RaycastResult();
-        if (world == null) return result;
-
-        Vector3d rayPos = new Vector3d(camera.pos);
-        Vector3d rayDir = new Vector3d(camera.front);
-
-        double step = 0.05f;
-        int lastX = (int) Math.round(rayPos.x);
-        int lastY = (int) Math.round(rayPos.y);
-        int lastZ = (int) Math.round(rayPos.z);
-
-        for (double d = 0; d < maxDistance; d += step) {
-            rayPos.add(new Vector3d(rayDir).mul(step));
-
-            int bx = (int) Math.round(rayPos.x);
-            int by = (int) Math.round(rayPos.y);
-            int bz = (int) Math.round(rayPos.z);
-
-            if (bx != lastX || by != lastY || bz != lastZ) {
-                if (world.getBlock(bx, by, bz) > 0) {
-                    result.hit = true;
-                    result.x = bx;
-                    result.y = by;
-                    result.z = bz;
-                    result.prevX = lastX;
-                    result.prevY = lastY;
-                    result.prevZ = lastZ;
-                    return result;
-                }
-                lastX = bx;
-                lastY = by;
-                lastZ = bz;
-            }
-        }
-        return result;
-    }
 
 
 }
