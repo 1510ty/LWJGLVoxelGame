@@ -22,6 +22,8 @@ public class World {
 
     private final int[][][] data;
 
+    private int airid;
+
     // サーバーから受信したデータでワールドを構築するコンストラクタ
     public World(int sizeX, int sizeY, int sizeZ, int[][][] loadedData) {
         SIZE_X = sizeX;
@@ -32,7 +34,7 @@ public class World {
 
     public int getBlock(int x, int y, int z) {
         if (x < 0 || x >= SIZE_X || y < 0 || y >= SIZE_Y || z < 0 || z >= SIZE_Z) {
-            return 0;
+            return airid;
         }
         return data[x][y][z];
     }
@@ -41,5 +43,9 @@ public class World {
         if (x >= 0 && x < SIZE_X && y >= 0 && y < SIZE_Y && z >= 0 && z < SIZE_Z) {
             data[x][y][z] = id;
         }
+    }
+
+    public void setairid(int id) {
+        airid = id;
     }
 }

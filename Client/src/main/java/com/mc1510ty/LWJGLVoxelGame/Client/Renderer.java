@@ -15,6 +15,7 @@
 //        along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package com.mc1510ty.LWJGLVoxelGame.Client;
 
+import com.mc1510ty.LWJGLVoxelGame.common.BlockNameIDMgr;
 import org.joml.Matrix4d;
 import org.joml.Vector3d;
 import org.lwjgl.system.MemoryStack;
@@ -31,8 +32,13 @@ import static org.lwjgl.opengl.GL30.*;
 public class Renderer {
     private int shaderProgram;
 
+    // 草ブロック用
     private int vao;
     private int vbo;
+
+    // 石ブロック用を追加
+    private int stoneVao;
+    private int stoneVbo;
 
     private int playerVao;
     private int playerVbo;
@@ -80,7 +86,7 @@ public class Renderer {
 
         String fsSource = "#version 460 core\n" +
                 "out vec4 FragColor;\n" +
-                "uniform vec3 textColor;\n" + // 通常のvec3でOK
+                "uniform vec3 textColor;\n" +
                 "void main() {\n" +
                 "   FragColor = vec4(textColor, 1.0);\n" +
                 "}";
@@ -115,21 +121,19 @@ public class Renderer {
 
         double centerX = screenWidth / 2.0;
         double centerY = screenHeight / 2.0;
-        double size = 10.0;      // 十字の線の長さ（中心からの片側、または全体サイズ）
-        double thickness = 2.0;  // 線の太さ
+        double size = 10.0;
+        double thickness = 2.0;
 
         int colorLoc = glGetUniformLocation(uiShaderProgram, "textColor");
-        glUniform3f(colorLoc, 1.0f, 1.0f, 1.0f); // 白色で表示
+        glUniform3f(colorLoc, 1.0f, 1.0f, 1.0f);
 
         glDisable(GL_DEPTH_TEST);
         glDisable(GL_CULL_FACE);
 
-        // 横棒の描画
         glUniform2d(glGetUniformLocation(uiShaderProgram, "position"), centerX - size, centerY - thickness / 2.0);
         glUniform2d(glGetUniformLocation(uiShaderProgram, "scale"), size * 2.0, thickness);
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
-        // 縦棒の描画
         glUniform2d(glGetUniformLocation(uiShaderProgram, "position"), centerX - thickness / 2.0, centerY - size);
         glUniform2d(glGetUniformLocation(uiShaderProgram, "scale"), thickness, size * 2.0);
         glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -171,11 +175,14 @@ public class Renderer {
     }
 
     private void setupBuffersAndShaders() {
+        double size = 0.5d;
+        int stride = 6 * Double.BYTES;
+
+        // --- 1. 草ブロック用の頂点データ ---
         double[] topColor    = {0.3d, 0.75d, 0.3d};
         double[] sideColor   = {0.55d, 0.35d, 0.15d};
         double[] bottomColor = {0.4d, 0.25d, 0.1d};
 
-        double size = 0.5d;
         double[] vertices = {
                 -size, -size,  size,  sideColor[0], sideColor[1], sideColor[2],
                 size, -size,  size,  sideColor[0], sideColor[1], sideColor[2],
@@ -226,20 +233,76 @@ public class Renderer {
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
         glBufferData(GL_ARRAY_BUFFER, vertices, GL_STATIC_DRAW);
 
-        // ★【追加】ブロック用のVAOにもデータの読み方を教える
-        int stride = 6 * Double.BYTES;
         glVertexAttribPointer(0, 3, GL_DOUBLE, false, stride, 0);
         glEnableVertexAttribArray(0);
         glVertexAttribPointer(1, 3, GL_DOUBLE, false, stride, 3 * Double.BYTES);
         glEnableVertexAttribArray(1);
 
 
-        double[] pTopColor    = {0.1d, 0.5d, 0.9d}; // 明るい青
-        double[] pSideColor   = {0.2d, 0.4d, 0.8d}; // 青
-        double[] pBottomColor = {0.05d, 0.2d, 0.5d}; // 濃い青
+        // --- 2. 石ブロック用の頂点データ（灰色） ---
+        double[] stoneColor = {0.5d, 0.5d, 0.5d}; // 全面共通の落ち着いた灰色
+        double[] stoneVertices = {
+                -size, -size,  size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                size, -size,  size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                size,  size,  size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                size,  size,  size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                -size,  size,  size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                -size, -size,  size,  stoneColor[0], stoneColor[1], stoneColor[2],
+
+                -size, -size, -size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                -size,  size, -size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                size,  size, -size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                size,  size, -size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                size, -size, -size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                -size, -size, -size,  stoneColor[0], stoneColor[1], stoneColor[2],
+
+                -size,  size,  size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                -size,  size, -size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                -size, -size, -size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                -size, -size, -size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                -size, -size,  size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                -size,  size,  size,  stoneColor[0], stoneColor[1], stoneColor[2],
+
+                size,  size,  size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                size, -size,  size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                size, -size, -size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                size, -size, -size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                size,  size, -size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                size,  size,  size,  stoneColor[0], stoneColor[1], stoneColor[2],
+
+                -size,  size,  size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                size,  size,  size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                size,  size, -size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                size,  size, -size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                -size,  size, -size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                -size,  size,  size,  stoneColor[0], stoneColor[1], stoneColor[2],
+
+                -size, -size,  size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                -size, -size, -size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                size, -size, -size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                size, -size, -size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                size, -size,  size,  stoneColor[0], stoneColor[1], stoneColor[2],
+                -size, -size,  size,  stoneColor[0], stoneColor[1], stoneColor[2]
+        };
+
+        stoneVao = glGenVertexArrays();
+        glBindVertexArray(stoneVao);
+        stoneVbo = glGenBuffers();
+        glBindBuffer(GL_ARRAY_BUFFER, stoneVbo);
+        glBufferData(GL_ARRAY_BUFFER, stoneVertices, GL_STATIC_DRAW);
+
+        glVertexAttribPointer(0, 3, GL_DOUBLE, false, stride, 0);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 3, GL_DOUBLE, false, stride, 3 * Double.BYTES);
+        glEnableVertexAttribArray(1);
+
+
+        // --- 3. プレイヤー用の頂点データ ---
+        double[] pTopColor    = {0.1d, 0.5d, 0.9d};
+        double[] pSideColor   = {0.2d, 0.4d, 0.8d};
+        double[] pBottomColor = {0.05d, 0.2d, 0.5d};
 
         double[] playerVertices = {
-                // （ブロックと同じ立方体の頂点データですが、色を上記のプレイヤー用カラーにします）
                 -size, -size,  size,  pSideColor[0], pSideColor[1], pSideColor[2],
                 size, -size,  size,  pSideColor[0], pSideColor[1], pSideColor[2],
                 size,  size,  size,  pSideColor[0], pSideColor[1], pSideColor[2],
@@ -289,15 +352,13 @@ public class Renderer {
         glBindBuffer(GL_ARRAY_BUFFER, playerVbo);
         glBufferData(GL_ARRAY_BUFFER, playerVertices, GL_STATIC_DRAW);
 
-        // ★【ここも重要】プレイヤー用のVAOにも同じように教える
         glVertexAttribPointer(0, 3, GL_DOUBLE, false, stride, 0);
         glEnableVertexAttribArray(0);
         glVertexAttribPointer(1, 3, GL_DOUBLE, false, stride, 3 * Double.BYTES);
         glEnableVertexAttribArray(1);
 
 
-
-
+        // --- シェーダーのコンパイル ---
         String vsSource = "#version 460 core\n" +
                 "layout (location = 0) in dvec3 aPos;\n" +
                 "layout (location = 1) in dvec3 aColor;\n" +
@@ -330,25 +391,35 @@ public class Renderer {
         glDeleteShader(fs);
     }
 
-    public void render(World world, Camera camera, Matrix4d projection, Map<Long, Vector3d> otherPlayers) {
+    public void render(World world, Camera camera, Matrix4d projection, Map<Long, Vector3d> otherPlayers, BlockNameIDMgr blocknameidmgr) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         glUseProgram(shaderProgram);
-        glBindVertexArray(vao);
 
         Matrix4d view = camera.getViewMatrix();
         Matrix4d pv = new Matrix4d();
-        projection.mul(view, pv); // Projection と View の掛け算
+        projection.mul(view, pv);
 
         Matrix4d mvp = new Matrix4d();
         Matrix4d model = new Matrix4d();
         int mvpLocation = glGetUniformLocation(shaderProgram, "mvp");
 
-        // 1. ワールドブロックの描画（いままで通り）
+        int stoneId = blocknameidmgr.getId("lwjglvoxelgame:stone");
+
+        // 1. ワールドブロックの描画
         for (int x = 0; x < World.SIZE_X; x++) {
             for (int y = 0; y < World.SIZE_Y; y++) {
                 for (int z = 0; z < World.SIZE_Z; z++) {
-                    if (world.getBlock(x, y, z) > 0) {
+                    int blockId = world.getBlock(x, y, z);
+
+                    if (blockId != 0) { // 空気(0)以外の場合に描画
+                        // ブロックの種類に応じてVAOを切り替える
+                        if (blockId == stoneId) {
+                            glBindVertexArray(stoneVao);
+                        } else {
+                            glBindVertexArray(vao); // デフォルト（草ブロックなど）
+                        }
+
                         model.identity().translation(x, y, z);
                         pv.mul(model, mvp);
 
@@ -361,9 +432,9 @@ public class Renderer {
             }
         }
 
-// 2. 他のプレイヤー（青い立方体）の描画
+        // 2. 他のプレイヤー（青い立方体）の描画
         if (otherPlayers != null && !otherPlayers.isEmpty()) {
-            glBindVertexArray(playerVao); // ★ プレイヤー用のVAOに切り替え！
+            glBindVertexArray(playerVao);
 
             for (org.joml.Vector3d pos : otherPlayers.values()) {
                 model.identity().translation(pos.x, pos.y, pos.z);
@@ -381,6 +452,9 @@ public class Renderer {
         glDeleteProgram(shaderProgram);
         glDeleteVertexArrays(vao);
         glDeleteBuffers(vbo);
+
+        glDeleteVertexArrays(stoneVao);
+        glDeleteBuffers(stoneVbo);
 
         glDeleteProgram(uiShaderProgram);
         glDeleteVertexArrays(uiVao);

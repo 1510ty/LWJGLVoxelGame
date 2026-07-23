@@ -24,9 +24,11 @@ import java.net.Socket;
 
 import static org.lwjgl.glfw.GLFW.*;
 
+import com.mc1510ty.LWJGLVoxelGame.common.BlockNameIDMgr;
+
 public class ClientNetwork {
 
-    public ClientLauncher.WorldConnectionResult fetchWorldFromServer(String host, int port, Socket serverSocket, DataOutputStream serverOut, java.util.Map<Long, Vector3d> otherPlayers) {
+    public ClientLauncher.WorldConnectionResult fetchWorldFromServer(String host, int port, Socket serverSocket, DataOutputStream serverOut, java.util.Map<Long, Vector3d> otherPlayers, BlockNameIDMgr blocknameidmgr) {
         int maxRetries = 10;
         int attempts = 0;
 
@@ -38,24 +40,44 @@ public class ClientNetwork {
                 DataInputStream in = new DataInputStream(serverSocket.getInputStream());
                 serverOut = new DataOutputStream(serverSocket.getOutputStream());
 
-                in.readLong(); //合わせ
-                int sizeX = in.readInt();
-                int sizeY = in.readInt();
-                int sizeZ = in.readInt();
+                World createdWorld = null;
+                int sizeX = 0, sizeY = 0, sizeZ = 0;
 
-                int[][][] loadedData = new int[sizeX][sizeY][sizeZ];
-                for (int x = 0; x < sizeX; x++) {
-                    for (int y = 0; y < sizeY; y++) {
-                        for (int z = 0; z < sizeZ; z++) {
-                            loadedData[x][y][z] = in.readInt();
+                // 1. 接続直後に送られてくる「ブロック辞書 (パケットID: 4)」を受け取る
+                long firstPacketType = in.readLong();
+                if (firstPacketType == 4) {
+                    int registrySize = in.readInt();
+                    for (int i = 0; i < registrySize; i++) {
+                        int id = in.readInt();
+                        String name = in.readUTF();
+                        blocknameidmgr.registerFromServer(id, name);
+                    }
+                    System.out.println("Block registry received from server. Total: " + registrySize);
+
+
+                    // 2. その次に送られてくる「ワールドデータ (パケットID: 3)」を受け取る
+                    long secondPacketType = in.readLong();
+                    if (secondPacketType == 3) {
+                        sizeX = in.readInt();
+                        sizeY = in.readInt();
+                        sizeZ = in.readInt();
+
+                        int[][][] loadedData = new int[sizeX][sizeY][sizeZ];
+                        for (int x = 0; x < sizeX; x++) {
+                            for (int y = 0; y < sizeY; y++) {
+                                for (int z = 0; z < sizeZ; z++) {
+                                    loadedData[x][y][z] = in.readInt();
+                                }
+                            }
                         }
+                        createdWorld = new World(sizeX, sizeY, sizeZ, loadedData);
+                        createdWorld.setairid(blocknameidmgr.getId("lwjglvoxelgame:air"));
                     }
                 }
 
-                World createdWorld = new World(sizeX, sizeY, sizeZ, loadedData);
-
                 final Socket currentSocket = serverSocket;
                 final DataInputStream currentIn = in;
+                final World finalWorld = createdWorld;
 
                 new Thread(() -> {
                     try {
@@ -63,25 +85,34 @@ public class ClientNetwork {
                             long packetType = currentIn.readLong();
 
                             if (packetType == 3) {
-                                int sX = in.readInt();
-                                int sY = in.readInt();
-                                int sZ = in.readInt();
+                                int sX = currentIn.readInt();
+                                int sY = currentIn.readInt();
+                                int sZ = currentIn.readInt();
 
                                 for (int x = 0; x < sX; x++) {
                                     for (int y = 0; y < sY; y++) {
                                         for (int z = 0; z < sZ; z++) {
-                                            int blockId = in.readInt();
-                                            if (createdWorld != null) {
-                                                createdWorld.setBlock(x, y, z, blockId);
+                                            int blockId = currentIn.readInt();
+                                            if (finalWorld != null) {
+                                                finalWorld.setBlock(x, y, z, blockId);
                                             }
                                         }
                                     }
                                 }
+                            } else if (packetType == 4) {
+                                // プレイ中に辞書が再同期された場合の処理
+                                int registrySize = currentIn.readInt();
+                                for (int i = 0; i < registrySize; i++) {
+                                    int id = currentIn.readInt();
+                                    String name = currentIn.readUTF();
+                                    blocknameidmgr.registerFromServer(id, name);
+                                }
+                                finalWorld.setairid(blocknameidmgr.getId("lwjglvoxelgame:air"));
                             } else if (packetType == 2) {
-                                long targetId = in.readLong();
-                                double px = in.readDouble();
-                                double py = in.readDouble();
-                                double pz = in.readDouble();
+                                long targetId = currentIn.readLong();
+                                double px = currentIn.readDouble();
+                                double py = currentIn.readDouble();
+                                double pz = currentIn.readDouble();
 
                                 otherPlayers.computeIfAbsent(targetId, id -> new Vector3d()).set(px, py, pz);
                             }  else if (packetType == -1) {
@@ -93,7 +124,7 @@ public class ClientNetwork {
                     }
                 }, "Client-Packet-Receiver").start();
 
-                System.out.println("World data received from server and synchronization thread started!");
+                System.out.println("World data and block registry received from server, and synchronization thread started!");
                 return new ClientLauncher.WorldConnectionResult(createdWorld, serverSocket, serverOut);
 
             } catch (IOException e) {
@@ -136,7 +167,7 @@ public class ClientNetwork {
         }
     }
 
-    public ClientLauncher.ConnectionResult connectToServerWithInput(StringBuilder addressInput, long window, World world, ClientLauncher.GameState currentState, boolean firstMouse, Socket serverSocket, DataOutputStream serverOut, java.util.Map<Long, Vector3d> otherPlayers) {
+    public ClientLauncher.ConnectionResult connectToServerWithInput(StringBuilder addressInput, long window, World world, ClientLauncher.GameState currentState, boolean firstMouse, Socket serverSocket, DataOutputStream serverOut, java.util.Map<Long, Vector3d> otherPlayers, BlockNameIDMgr blockidnamemgr) {
         String inputStr = addressInput.toString().trim();
         String host = "localhost";
         int port = 35565;
@@ -154,7 +185,7 @@ public class ClientNetwork {
         }
 
         try {
-            ClientLauncher.WorldConnectionResult result = fetchWorldFromServer(host, port,serverSocket,serverOut, otherPlayers);
+            ClientLauncher.WorldConnectionResult result = fetchWorldFromServer(host, port,serverSocket,serverOut, otherPlayers, blockidnamemgr);
             World newWorld = result.world();
             Socket newServerSocket = result.socket();
             DataOutputStream newServerOut = result.serverOut();

@@ -15,6 +15,7 @@
 //        along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package com.mc1510ty.LWJGLVoxelGame.Client;
 
+import com.mc1510ty.LWJGLVoxelGame.common.BlockNameIDMgr;
 import org.joml.Matrix4d;
 import org.joml.Vector3d;
 import org.lwjgl.glfw.GLFWErrorCallback;
@@ -44,6 +45,8 @@ public class ClientLauncher {
 
     private ClientNetwork network = new ClientNetwork();
     private integratedServerMgr integratedservermgr = new integratedServerMgr();
+
+    private BlockNameIDMgr blocknameidmgr = new BlockNameIDMgr();
 
 
     private long window;
@@ -153,7 +156,7 @@ public class ClientLauncher {
             if (currentState == GameState.MENU && button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
                 if (singlePlayerButton != null && singlePlayerButton.isHovered(mouseX[0], mouseY[0])) {
                     serverProcess = integratedservermgr.extractAndStartServer(worldFilePath,serverProcess);
-                    ClientLauncher.WorldConnectionResult result = network.fetchWorldFromServer("localhost", 35565,serverSocket,serverOut, otherPlayers);
+                    ClientLauncher.WorldConnectionResult result = network.fetchWorldFromServer("localhost", 35565,serverSocket,serverOut, otherPlayers, blocknameidmgr);
                     this.world = result.world();
                     this.serverSocket = result.socket();
                     this.serverOut = result.serverOut();
@@ -168,11 +171,16 @@ public class ClientLauncher {
                 RaycastResult hit = camera.raycast(6.0f,world,camera);
                 if (hit.hit) {
                     if (button == GLFW_MOUSE_BUTTON_LEFT) {
-                        world.setBlock(hit.x, hit.y, hit.z, 0);
-                        network.sendBlockChange(hit.x, hit.y, hit.z, 0, serverOut);
+                        // 左クリック：問答無用で空気（air）にする
+                        int airId = blocknameidmgr.getId("lwjglvoxelgame:air");
+                        world.setBlock(hit.x, hit.y, hit.z, airId);
+                        network.sendBlockChange(hit.x, hit.y, hit.z, airId, serverOut);
                     } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
-                        world.setBlock(hit.prevX, hit.prevY, hit.prevZ, 1);
-                        network.sendBlockChange(hit.prevX, hit.prevY, hit.prevZ, 1, serverOut);
+                        // 右クリック：現状は草ブロック（grass_block）にする
+                        int grassId = blocknameidmgr.getId("lwjglvoxelgame:grass_block");
+                        System.out.println("取得したgrassId: " + grassId); // ここで 0 になっていないか確認！
+                        world.setBlock(hit.prevX, hit.prevY, hit.prevZ, grassId);
+                        network.sendBlockChange(hit.prevX, hit.prevY, hit.prevZ, grassId, serverOut);
                     }
                 }
             }
@@ -199,7 +207,7 @@ public class ClientLauncher {
                 if (key == GLFW_KEY_BACKSPACE && !addressInput.isEmpty()) {
                     addressInput.deleteCharAt(addressInput.length() - 1);
                 } else if (key == GLFW_KEY_ENTER) {
-                    ConnectionResult result = network.connectToServerWithInput(addressInput,window,world,currentState,firstMouse,serverSocket,serverOut, otherPlayers);
+                    ConnectionResult result = network.connectToServerWithInput(addressInput,window,world,currentState,firstMouse,serverSocket,serverOut, otherPlayers,blocknameidmgr);
                     this.world = result.world();
                     this.currentState = result.currentState();
                     this.firstMouse = result.firstMouse();
@@ -291,7 +299,7 @@ public class ClientLauncher {
                     lastSendTime = currentTime;
                 }
 
-                renderer.render(world, camera, projection, otherPlayers);
+                renderer.render(world, camera, projection, otherPlayers, blocknameidmgr);
 
                 renderer.renderCrosshair(WIDTH, HEIGHT);
             }

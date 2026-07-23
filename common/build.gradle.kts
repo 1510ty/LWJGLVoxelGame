@@ -13,7 +13,12 @@
 //
 //        You should have received a copy of the GNU General Public License
 //        along with this program.  If not, see <https://www.gnu.org/licenses/>.
-rootProject.name = "LWJGLVoxelGame"
-include("Client")
-include("Server")
-include("common")
+plugins {
+    id("java")
+}
+
+group = "com.mc1510ty"
+
+repositories {
+    mavenCentral()
+}

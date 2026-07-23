@@ -27,6 +27,8 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.mc1510ty.LWJGLVoxelGame.common.BlockNameIDMgr;
+
 public class Main {
     private static final int CHUNK_SIZE_X = 16;
     private static final int CHUNK_SIZE_Y = 4;
@@ -37,22 +39,15 @@ public class Main {
 
     private static AtomicLong idCounter = new AtomicLong(0);
 
+    private static final BlockNameIDMgr blocknameidmgr = new BlockNameIDMgr();
+
     public static void main(String[] args) {
         System.out.println("Starting LWJGLVoxelGame Server...");
 
-        BlockNameIDMgr blocknameidmgr = new BlockNameIDMgr();
-
         blocknameidmgr.init();
-        IO.println(blocknameidmgr.getId("lwjglvoxelgame:grass_block"));
-        IO.println(blocknameidmgr.getName(2));
-
-        System.exit(0);
 
         String worldFilePath = "world.dat"; // デフォルト
         boolean isIntegrated = false;
-
-
-
 
         // 引数の解析
         for (String arg : args) {
@@ -153,6 +148,8 @@ public class Main {
 
                         // リストに登録
                         clients.add(out);
+
+                        sendBlockRegistry(out, blocknameidmgr);
 
                         // ★ 共通化したメソッドを使ってワールドデータを送信
                         sendWorldData(out, worldData);
@@ -280,5 +277,18 @@ public class Main {
                 // すでに切断されている場合はスルー
             }
         }
+    }
+
+    private static void sendBlockRegistry(DataOutputStream out, BlockNameIDMgr mgr) throws IOException {
+        out.writeLong(4); // パケットID 4: ブロック辞書同期
+
+        List<String> idToName = mgr.getIdToName();
+        out.writeInt(idToName.size()); // 辞書の個数を送る
+
+        for (int id = 0; id < idToName.size(); id++) {
+            out.writeInt(id);            // ID (int)
+            out.writeUTF(idToName.get(id)); // ブロック名 (String)
+        }
+        out.flush();
     }
 }

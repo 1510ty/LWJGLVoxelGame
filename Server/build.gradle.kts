@@ -25,6 +25,8 @@ repositories {
 }
 
 dependencies {
+    implementation(project(":common"))
+
     implementation("org.yaml:snakeyaml:2.2")
 }
 
