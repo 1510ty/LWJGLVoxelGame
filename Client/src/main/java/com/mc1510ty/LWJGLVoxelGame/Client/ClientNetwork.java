@@ -38,7 +38,7 @@ public class ClientNetwork {
                 DataInputStream in = new DataInputStream(serverSocket.getInputStream());
                 serverOut = new DataOutputStream(serverSocket.getOutputStream());
 
-                int initialPacketType = in.readInt();
+                in.readLong(); //合わせ
                 int sizeX = in.readInt();
                 int sizeY = in.readInt();
                 int sizeZ = in.readInt();
@@ -60,7 +60,7 @@ public class ClientNetwork {
                 new Thread(() -> {
                     try {
                         while (!currentSocket.isClosed()) {
-                            int packetType = currentIn.readInt();
+                            long packetType = currentIn.readLong();
 
                             if (packetType == 3) {
                                 int sX = in.readInt();
@@ -84,6 +84,8 @@ public class ClientNetwork {
                                 double pz = in.readDouble();
 
                                 otherPlayers.computeIfAbsent(targetId, id -> new Vector3d()).set(px, py, pz);
+                            }  else if (packetType == -1) {
+                                IO.println("Server Closed");
                             }
                         }
                     } catch (IOException e) {

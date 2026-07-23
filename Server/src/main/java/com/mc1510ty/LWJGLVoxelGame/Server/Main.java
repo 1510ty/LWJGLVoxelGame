@@ -122,6 +122,7 @@ public class Main {
         }
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            kickPlayers();
             saveWorld(worldFile, worldData);
         }));
 
@@ -179,7 +180,7 @@ public class Main {
                                 for (DataOutputStream clientOut : clients) {
                                     if (clientOut != out) {
                                         try {
-                                            clientOut.writeInt(2); // パケットID 2
+                                            clientOut.writeLong(2); // パケットID 2
                                             clientOut.writeLong(myId); // 誰のIDか一緒に送る
                                             clientOut.writeDouble(px);
                                             clientOut.writeDouble(py);
@@ -213,7 +214,7 @@ public class Main {
 
     // ★ ワールドデータを送信する共通メソッド
     private static void sendWorldData(DataOutputStream out, int[][][] worldData) throws IOException {
-        out.writeInt(3); // パケットID 3: ワールド全体データ同期
+        out.writeLong(3); // パケットID 3: ワールド全体データ同期
         out.writeInt(CHUNK_SIZE_X);
         out.writeInt(CHUNK_SIZE_Y);
         out.writeInt(CHUNK_SIZE_Z);
@@ -256,6 +257,17 @@ public class Main {
             System.out.println("World data successfully saved to: " + file.getAbsolutePath());
         } catch (IOException e) {
             e.printStackTrace();
+        }
+    }
+
+    private static void kickPlayers() {
+        for (DataOutputStream out : clients) {
+            try {
+                out.writeLong(-1); // 切断を伝えるパケット（例）
+                out.flush();
+            } catch (IOException e) {
+                // すでに切断されている場合はスルー
+            }
         }
     }
 }
