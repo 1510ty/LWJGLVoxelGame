@@ -74,6 +74,25 @@ jobs:
             echo "リリース条件には一致しませんでした。"
           fi
 
+      - name: リリース用ファイルのリネームと整理
+        if: env.RELEASE_TYPE != 'none'
+        run: |
+          mkdir -p release-files
+          
+          # ClientとServerのjarファイルを安全に探してコピー＆リネーム
+          client_jar=$(ls Client/build/libs/*.jar | grep -v 'plain' | head -n 1)
+          server_jar=$(ls Server/build/libs/*.jar | grep -v 'plain' | head -n 1)
+          
+          if [ -f "$client_jar" ]; then
+            cp "$client_jar" "release-files/LWJGLVoxelGame-Client-${{ env.RELEASE_TAG }}.jar"
+            echo "Client jar renamed successfully."
+          fi
+          
+          if [ -f "$server_jar" ]; then
+            cp "$server_jar" "release-files/LWJGLVoxelGame-Server-${{ env.RELEASE_TAG }}.jar"
+            echo "Server jar renamed successfully."
+          fi
+
       - name: 配置（Artifactsアップロード）
         uses: actions/upload-artifact@v6
         with:
@@ -91,7 +110,6 @@ jobs:
           body: ${{ env.RELEASE_BODY }}
           prerelease: ${{ env.IS_PRERELEASE }}
           files: |
-            Client/build/libs/*.jar
-            Server/build/libs/*.jar
+            release-files/*.jar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
