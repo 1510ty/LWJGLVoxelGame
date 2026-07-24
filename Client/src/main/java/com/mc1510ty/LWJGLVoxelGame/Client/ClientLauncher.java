@@ -730,6 +730,7 @@ public class ClientLauncher {
                             swapchainImageWidth, swapchainImageHeight,
                             new Vector3d(1.0f, 1.0f, 1.0f)
                     );
+                    IO.println("とってるわぼけ");
 
                 } else if (currentState == GameState.ADDRESS_INPUT) {
                     fontRenderer.drawText(
@@ -760,7 +761,7 @@ public class ClientLauncher {
                                 Math.toRadians(70.0),
                                 (double) swapchainImageWidth / swapchainImageHeight,
                                 0.1, 1000.0
-                        );
+                        ).scale(1.0, -1.0, 1.0); // Y軸をVulkan用に反転させる
 
                         renderer.render(
                                 commandBuffer,

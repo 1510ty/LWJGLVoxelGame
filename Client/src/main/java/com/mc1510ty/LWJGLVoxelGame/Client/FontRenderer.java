@@ -74,9 +74,21 @@ public class FontRenderer {
             cdata = STBTTBakedChar.malloc(NUM_CHARS);
 
             stbtt_BakeFontBitmap(ttf, 24.0f, bitmap, BITMAP_W, BITMAP_H, FIRST_CHAR, cdata);
-
             // 1. テクスチャ画像の作成とGPUへの転送
             createFontTexture(commandPool, graphicsQueue, bitmap);
+
+            try {
+                int width = BITMAP_W;
+                int height = BITMAP_H;
+                java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(width, height, java.awt.image.BufferedImage.TYPE_BYTE_GRAY);
+                byte[] bytes = new byte[width * height];
+                bitmap.position(0);
+                bitmap.get(bytes);
+                img.getRaster().setDataElements(0, 0, width, height, bytes);
+                javax.imageio.ImageIO.write(img, "png", new java.io.File("font_debug.png"));
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
 
             // 2. イメージビューとサンプラーの作成
             createImageViewAndSampler();
@@ -365,8 +377,11 @@ public class FontRenderer {
 
             VkPipelineDepthStencilStateCreateInfo depthStencil = VkPipelineDepthStencilStateCreateInfo.calloc(stack)
                     .sType(VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO)
-                    .depthTestEnable(false)
-                    .depthWriteEnable(false);
+                    .depthTestEnable(false)      // ← ここを false に！
+                    .depthWriteEnable(false)     // ← ここも false に！
+                    .depthCompareOp(VK_COMPARE_OP_LESS)
+                    .depthBoundsTestEnable(false)
+                    .stencilTestEnable(false);
 
             VkGraphicsPipelineCreateInfo.Buffer pipelineInfo = VkGraphicsPipelineCreateInfo.calloc(1, stack)
                     .sType(VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO)
@@ -447,6 +462,7 @@ public class FontRenderer {
             pushConst.putFloat((float) color.x);
             pushConst.putFloat((float) color.y);
             pushConst.putFloat((float) color.z);
+            pushConst.putInt(0);
             pushConst.flip();
 
             vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, pushConst);
@@ -461,25 +477,54 @@ public class FontRenderer {
             float[] ypos = { y + 20.0f };
             int validCharCount = 0;
 
+//            for (int i = 0; i < text.length(); i++) {
+//                char c = text.charAt(i);
+//                if (c < FIRST_CHAR || c >= FIRST_CHAR + NUM_CHARS) continue;
+//
+//                stbtt_GetBakedQuad(cdata, BITMAP_W, BITMAP_H, c - FIRST_CHAR, xpos, ypos, q, true);
+//
+//                float x0 = q.x0();
+//                float y0 = q.y0();
+//                float x1 = q.x1();
+//                float y1 = q.y1();
+//                float s0 = q.s0();
+//                float t0 = q.t0();
+//                float s1 = q.s1();
+//                float t1 = q.t1();
+//
+//                // 三角形 1
+//                verticesBuffer.put(x0).put(y0).put(s0).put(t0);
+//                verticesBuffer.put(x0).put(y1).put(s0).put(t1);
+//                verticesBuffer.put(x1).put(y1).put(s1).put(t1);
+//
+//                // 三角形 2
+//                verticesBuffer.put(x0).put(y0).put(s0).put(t0);
+//                verticesBuffer.put(x1).put(y1).put(s1).put(t1);
+//                verticesBuffer.put(x1).put(y0).put(s1).put(t0);
+//
+//                validCharCount++;
+//            }
             for (int i = 0; i < text.length(); i++) {
                 char c = text.charAt(i);
                 if (c < FIRST_CHAR || c >= FIRST_CHAR + NUM_CHARS) continue;
 
                 stbtt_GetBakedQuad(cdata, BITMAP_W, BITMAP_H, c - FIRST_CHAR, xpos, ypos, q, true);
 
-                float x0 = q.x0();
-                float y0 = q.y0();
-                float x1 = q.x1();
-                float y1 = q.y1();
+                // scale を反映させる場合
+                float x0 = (float) (q.x0() * scale);
+                float y0 = (float) (q.y0() * scale);
+                float x1 = (float) (q.x1() * scale);
+                float y1 = (float) (q.y1() * scale);
                 float s0 = q.s0();
                 float t0 = q.t0();
                 float s1 = q.s1();
                 float t1 = q.t1();
 
+                // カリング対策として頂点の巻く方向を反転させる（または三角形の順序を入れ替え）
                 // 三角形 1
                 verticesBuffer.put(x0).put(y0).put(s0).put(t0);
-                verticesBuffer.put(x0).put(y1).put(s0).put(t1);
                 verticesBuffer.put(x1).put(y1).put(s1).put(t1);
+                verticesBuffer.put(x0).put(y1).put(s0).put(t1);
 
                 // 三角形 2
                 verticesBuffer.put(x0).put(y0).put(s0).put(t0);
