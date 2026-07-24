@@ -74,7 +74,7 @@ public class Renderer {
         glVertexAttribPointer(0, 2, GL_DOUBLE, false, 2 * Double.BYTES, 0);
         glEnableVertexAttribArray(0);
 
-        String vsSource = "#version 460 core\n" +
+        String vsSource = "#version 410 core\n" +
                 "layout (location = 0) in dvec2 aPos;\n" +
                 "uniform dmat4 projection;\n" +
                 "uniform dvec2 position;\n" +
@@ -84,7 +84,7 @@ public class Renderer {
                 "   gl_Position = vec4(projection * dvec4(pos, 0.0, 1.0));\n" +
                 "}";
 
-        String fsSource = "#version 460 core\n" +
+        String fsSource = "#version 410 core\n" +
                 "out vec4 FragColor;\n" +
                 "uniform vec3 textColor;\n" +
                 "void main() {\n" +
@@ -359,7 +359,7 @@ public class Renderer {
 
 
         // --- シェーダーのコンパイル ---
-        String vsSource = "#version 460 core\n" +
+        String vsSource = "#version 410 core\n" +
                 "layout (location = 0) in dvec3 aPos;\n" +
                 "layout (location = 1) in dvec3 aColor;\n" +
                 "uniform dmat4 mvp;\n" +
@@ -369,7 +369,7 @@ public class Renderer {
                 "   ourColor = vec3(aColor);\n" +
                 "}";
 
-        String fsSource = "#version 460 core\n" +
+        String fsSource = "#version 410 core\n" +
                 "in vec3 ourColor;\n" +
                 "out vec4 FragColor;\n" +
                 "void main() {\n" +

@@ -95,7 +95,7 @@ public class FontRenderer {
         glVertexAttribPointer(1, 2, GL_DOUBLE, false, 4 * Double.BYTES, 2 * Double.BYTES);
         glEnableVertexAttribArray(1);
 
-        String vs = "#version 460 core\n" +
+        String vs = "#version 410 core\n" +
                 "layout (location = 0) in dvec2 aPos;\n" +
                 "layout (location = 1) in dvec2 aTexCoord;\n" +
                 "uniform dmat4 projection;\n" +
@@ -105,7 +105,7 @@ public class FontRenderer {
                 "   TexCoord = vec2(aTexCoord);\n" +
                 "}";
 
-        String fs = "#version 460 core\n" +
+        String fs = "#version 410 core\n" +
                 "in vec2 TexCoord;\n" +
                 "out vec4 FragColor;\n" +
                 "uniform sampler2D tex;\n" +
