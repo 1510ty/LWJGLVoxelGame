@@ -327,7 +327,6 @@ public class ClientLauncher {
                 double singleY = (windowHeight / 2.0) - 45.0;
                 double multiY  = (windowHeight / 2.0) + 15.0;
 
-                // ボタンの位置を更新（※ButtonクラスにsetPosition等がない場合はフィールドに直接代入するかメソッドを追加してください）
                 singlePlayerButton.setPosition(centerX, singleY);
 
                 multiPlayerButton.setPosition(centerX,multiY);
@@ -368,6 +367,9 @@ public class ClientLauncher {
 
                 renderer.renderCrosshair(windowWidth, windowHeight);
             }
+
+            // メニュー画面やループ内の描画処理の中で呼び出す
+            fontRenderer.drawText("LWJGLVoxelGame PreClassic", 10.0f, 10.0f, 0.8f, windowWidth, windowHeight, new Vector3d(1.0f, 1.0f, 1.0f));
 
             glfwSwapBuffers(window);
             glfwPollEvents();

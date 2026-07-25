@@ -144,7 +144,7 @@ public class FontRenderer {
             glUniformMatrix4dv(projLoc, false, fb);
         }
 
-        glUniform3d(glGetUniformLocation(shaderProgram, "textColor"), color.x, color.y, color.z);
+        glUniform3f(glGetUniformLocation(shaderProgram, "textColor"), (float) color.x, (float) color.y, (float) color.z);
 
         glDisable(GL_DEPTH_TEST);
         glDisable(GL_CULL_FACE);
