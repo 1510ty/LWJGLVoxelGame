@@ -32,6 +32,7 @@ import static org.lwjgl.opengl.GL11.*;
 import static org.lwjgl.opengl.GL20.*;
 import static org.lwjgl.opengl.GL30.*;
 import static org.lwjgl.opengl.GL40.glUniform3d;
+import static org.lwjgl.opengl.GL41.glVertexAttribLPointer;
 import static org.lwjgl.stb.STBTruetype.*;
 
 public class FontRenderer {
@@ -90,9 +91,9 @@ public class FontRenderer {
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
         glBufferData(GL_ARRAY_BUFFER, 4 * 4 * 6 * Double.BYTES, GL_DYNAMIC_DRAW);
 
-        glVertexAttribPointer(0, 2, GL_DOUBLE, false, 4 * Double.BYTES, 0);
+        glVertexAttribLPointer(0, 2, GL_DOUBLE, 4 * Double.BYTES, 0L);
         glEnableVertexAttribArray(0);
-        glVertexAttribPointer(1, 2, GL_DOUBLE, false, 4 * Double.BYTES, 2 * Double.BYTES);
+        glVertexAttribLPointer(1, 2, GL_DOUBLE, 4 * Double.BYTES, 2 * Double.BYTES);
         glEnableVertexAttribArray(1);
 
         String vs = "#version 410 core\n" +

@@ -28,6 +28,7 @@ import static org.lwjgl.opengl.ARBGPUShaderFP64.*;
 import static org.lwjgl.opengl.GL11.*;
 import static org.lwjgl.opengl.GL20.*;
 import static org.lwjgl.opengl.GL30.*;
+import static org.lwjgl.opengl.GL41.glVertexAttribLPointer;
 
 public class Renderer {
     private int shaderProgram;
@@ -71,7 +72,7 @@ public class Renderer {
         glBindBuffer(GL_ARRAY_BUFFER, uiVbo);
         glBufferData(GL_ARRAY_BUFFER, vertices, GL_STATIC_DRAW);
 
-        glVertexAttribPointer(0, 2, GL_DOUBLE, false, 2 * Double.BYTES, 0);
+        glVertexAttribLPointer(0, 2, GL_DOUBLE, 2 * Double.BYTES, 0L);
         glEnableVertexAttribArray(0);
 
         String vsSource = "#version 410 core\n" +
@@ -233,9 +234,9 @@ public class Renderer {
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
         glBufferData(GL_ARRAY_BUFFER, vertices, GL_STATIC_DRAW);
 
-        glVertexAttribPointer(0, 3, GL_DOUBLE, false, stride, 0);
+        glVertexAttribLPointer(0, 3, GL_DOUBLE, stride, 0L);
         glEnableVertexAttribArray(0);
-        glVertexAttribPointer(1, 3, GL_DOUBLE, false, stride, 3 * Double.BYTES);
+        glVertexAttribLPointer(1, 3, GL_DOUBLE, stride, 3 * Double.BYTES);
         glEnableVertexAttribArray(1);
 
 
@@ -387,6 +388,24 @@ public class Renderer {
         glAttachShader(shaderProgram, vs);
         glAttachShader(shaderProgram, fs);
         glLinkProgram(shaderProgram);
+
+        if (glGetProgrami(shaderProgram, GL_LINK_STATUS) == GL_FALSE) {
+            String infoLog = glGetProgramInfoLog(shaderProgram, 1024);
+            System.err.println("シェーダーのリンクに失敗しました:\n" + infoLog);
+        }
+
+        int success = glGetShaderi(vs, GL_COMPILE_STATUS);
+        if (success == GL_FALSE) {
+            String log = glGetShaderInfoLog(vs, 1024);
+            System.err.println("Vertex Shader Compilation Failed:\n" + log);
+        }
+
+        int linkSuccess = glGetProgrami(shaderProgram, GL_LINK_STATUS);
+        if (linkSuccess == GL_FALSE) {
+            String log = glGetProgramInfoLog(shaderProgram, 1024);
+            System.err.println("Shader Program Link Failed:\n" + log);
+        }
+
         glDeleteShader(vs);
         glDeleteShader(fs);
     }
