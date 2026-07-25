@@ -63,15 +63,15 @@ public class ClientLauncher {
             DataOutputStream serverOut
     ) {}
 
+    private int windowWidth = 1280;
+    private int windowHeight = 720;
 
-    private static final int WIDTH = 1280;
-    private static final int HEIGHT = 720;
 
     private final boolean[] keys = new boolean[1024];
 
     private boolean firstMouse = true;
-    private double lastX = WIDTH / 2.0;
-    private double lastY = HEIGHT / 2.0;
+    private double lastX = windowWidth / 2.0;
+    private double lastY = windowHeight / 2.0;
 
     private World world;
     private Camera camera;
@@ -90,6 +90,9 @@ public class ClientLauncher {
     private final java.util.Map<Long, Vector3d> otherPlayers = new java.util.concurrent.ConcurrentHashMap<>();
 
     private double lastSendTime = 0;
+
+    private boolean isBorderlessFullscreen = false;
+    private int windowedX, windowedY, windowedWidth, windowedHeight;
 
     public void run(String[] args) {
         if (args.length > 0) {
@@ -121,10 +124,16 @@ public class ClientLauncher {
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-        window = glfwCreateWindow(WIDTH, HEIGHT, "Voxel Game Client", NULL, NULL);
+        window = glfwCreateWindow(windowWidth, windowHeight, "Voxel Game Client", NULL, NULL);
         if (window == NULL) {
             throw new RuntimeException("GLFWウィンドウの作成に失敗しました。");
         }
+
+        glfwSetFramebufferSizeCallback(window, (w, width, height) -> {
+            windowWidth = width;
+            windowHeight = height;
+            glViewport(0, 0, width, height);
+        });
 
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 
@@ -202,6 +211,39 @@ public class ClientLauncher {
                 }
             }
 
+            if (key == GLFW_KEY_F11 && action == GLFW_PRESS) {
+                long monitor = glfwGetPrimaryMonitor();
+                org.lwjgl.glfw.GLFWVidMode mode = glfwGetVideoMode(monitor);
+
+                if (!isBorderlessFullscreen) {
+                    // 現在のウィンドウの位置とサイズを保存しておく
+                    try (MemoryStack stack = MemoryStack.stackPush()) {
+                        IntBuffer pX = stack.mallocInt(1);
+                        IntBuffer pY = stack.mallocInt(1);
+                        IntBuffer pW = stack.mallocInt(1);
+                        IntBuffer pH = stack.mallocInt(1);
+                        glfwGetWindowPos(window, pX, pY);
+                        glfwGetWindowSize(window, pW, pH);
+                        windowedX = pX.get(0);
+                        windowedY = pY.get(0);
+                        windowedWidth = pW.get(0);
+                        windowedHeight = pH.get(0);
+                    }
+
+                    // 枠を消してモニターいっぱいに拡大
+                    glfwSetWindowAttrib(window, GLFW_DECORATED, GLFW_FALSE);
+                    glfwSetWindowPos(window, 0, 0);
+                    glfwSetWindowSize(window, mode.width(), mode.height());
+                    isBorderlessFullscreen = true;
+                } else {
+                    // 元のウィンドウ状態に戻す
+                    glfwSetWindowAttrib(window, GLFW_DECORATED, GLFW_TRUE);
+                    glfwSetWindowPos(window, windowedX, windowedY);
+                    glfwSetWindowSize(window, windowedWidth, windowedHeight);
+                    isBorderlessFullscreen = false;
+                }
+            }
+
             // アドレス入力中の特殊キー処理（バックスペースとエンター）
             if (currentState == GameState.ADDRESS_INPUT && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
                 if (key == GLFW_KEY_BACKSPACE && !addressInput.isEmpty()) {
@@ -257,9 +299,7 @@ public class ClientLauncher {
     }
 
 
-
     private void loop() {
-        Matrix4d projection = new Matrix4d().perspective(Math.toRadians(45.0f), (double) WIDTH / HEIGHT, 0.1f, 100.0f);
         double lastFrameTime = glfwGetTime();
 
         while (!glfwWindowShouldClose(window)) {
@@ -267,28 +307,53 @@ public class ClientLauncher {
             double deltaTime = (currentFrameTime - lastFrameTime);
             lastFrameTime = currentFrameTime;
 
+            // 毎フレーム（またはサイズが変わったとき）現在のウィンドウサイズからアスペクト比を計算
+            Matrix4d projection = new Matrix4d().perspective(
+                    Math.toRadians(80.0f),
+                    (double) windowWidth / windowHeight,
+                    0.1f,
+                    100.0f
+            );
+
             if (currentState == GameState.MENU) {
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+                // --- 画面中央を基準にした座標を計算 ---
+                double btnWidth = 400.0;
+                double btnHeight = 50.0;
+                double centerX = (windowWidth - btnWidth) / 2.0;
+
+                // 画面の高さの中央から少し上・下に配置
+                double singleY = (windowHeight / 2.0) - 45.0;
+                double multiY  = (windowHeight / 2.0) + 15.0;
+
+                // ボタンの位置を更新（※ButtonクラスにsetPosition等がない場合はフィールドに直接代入するかメソッドを追加してください）
+                singlePlayerButton.setPosition(centerX, singleY);
+
+                multiPlayerButton.setPosition(centerX,multiY);
+                // ------------------------------------
 
                 double[] mx = new double[1];
                 double[] my = new double[1];
                 glfwGetCursorPos(window, mx, my);
 
+                // ボタンの描画と判定
                 boolean isSingleHovered = singlePlayerButton.isHovered(mx[0], my[0]);
-                renderer.renderButton(singlePlayerButton, isSingleHovered, WIDTH, HEIGHT);
-                fontRenderer.drawText("SinglePlayer", 470.0f, 272.0f, 1.0f, WIDTH, HEIGHT, new Vector3d(1.0f, 1.0f, 1.0f));
+                renderer.renderButton(singlePlayerButton, isSingleHovered, windowWidth, windowHeight);
+
+                // 文字の描画位置もボタンの中央付近に連動させる
+                fontRenderer.drawText("SinglePlayer", (float)centerX + 110.0f, (float)singleY + 12.0f, 1.0f, windowWidth, windowHeight, new Vector3d(1.0f, 1.0f, 1.0f));
 
                 boolean isMultiHovered = multiPlayerButton.isHovered(mx[0], my[0]);
-                renderer.renderButton(multiPlayerButton, isMultiHovered, WIDTH, HEIGHT);
-                fontRenderer.drawText("MultiPlayer", 485.0f, 342.0f, 1.0f, WIDTH, HEIGHT, new Vector3d(1.0f, 1.0f, 1.0f));
+                renderer.renderButton(multiPlayerButton, isMultiHovered, windowWidth, windowHeight);
+                fontRenderer.drawText("MultiPlayer", (float)centerX + 125.0f, (float)multiY + 12.0f, 1.0f, windowWidth, windowHeight, new Vector3d(1.0f, 1.0f, 1.0f));
 
             } else if (currentState == GameState.ADDRESS_INPUT) {
-                // アドレス入力画面の描画
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-                renderer.renderButton(multiPlayerButton, false, WIDTH, HEIGHT);
-                fontRenderer.drawText("Enter Server IP:", 440.0f, 220.0f, 1.0f, WIDTH, HEIGHT, new Vector3d(1.0f, 1.0f, 1.0f));
-                fontRenderer.drawText(addressInput.toString(), 460.0f, 342.0f, 1.0f, WIDTH, HEIGHT, new Vector3d(1.0f, 1.0f, 1.0f));
+                renderer.renderButton(multiPlayerButton, false, windowWidth, windowHeight);
+                fontRenderer.drawText("Enter Server IP:", 440.0f, 220.0f, 1.0f, windowWidth, windowHeight, new Vector3d(1.0f, 1.0f, 1.0f));
+                fontRenderer.drawText(addressInput.toString(), 460.0f, 342.0f, 1.0f, windowWidth, windowHeight, new Vector3d(1.0f, 1.0f, 1.0f));
 
             } else if (currentState == GameState.PLAYING) {
                 camera.processInput(keys, deltaTime, world);
@@ -301,7 +366,7 @@ public class ClientLauncher {
 
                 renderer.render(world, camera, projection, otherPlayers, blocknameidmgr);
 
-                renderer.renderCrosshair(WIDTH, HEIGHT);
+                renderer.renderCrosshair(windowWidth, windowHeight);
             }
 
             glfwSwapBuffers(window);
