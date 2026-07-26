@@ -15,8 +15,8 @@
 //        along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package com.mc1510ty.LWJGLVoxelGame.Client;
 
+import com.mc1510ty.LWJGLVoxelGame.Client.vulkan.Vulkan;
 import org.lwjgl.glfw.GLFWErrorCallback;
-import org.lwjgl.vulkan.*;
 
 import java.io.*;
 import java.net.Socket;
@@ -103,7 +103,7 @@ public class ClientLauncher {
 
 
         //Vulkanの初期化
-        vulkan.initVulkan();
+        vulkan.initVulkan(window);
 
 
     }
