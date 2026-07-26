@@ -23,7 +23,7 @@ public class Vulkan {
 
         //流れを説明します!!! (これを呼んで君もVulkanインスタンス作成マスターだ!(????????????))
         //1. Javaから、CのライブラリであるVulkanを安全、そして高速に呼び出すために、一時的にメモリ領域を確保。tryを抜けると、自動で開放される。
-        //2. OSとかドライバが認識するための、いろんな情報(アプリ名とか、エンジン名とかを設定)
+        //2. OSとかドライバが認識するための、いろんな情報(アプリ名とか、エンジン名とか)を設定
         //3. Vulkanのバージョンを設定 (1.4に設定) 補足: 1.4でいろいろ書きやすくなったらしい
         //4. 設定を詰め込む構造体(createInfo構造体)を作成し、
         //   作った構造体に"インスタンス作成用の設定を詰め込んだ構造体(VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO)"というラベルをくっつけ、
@@ -43,7 +43,7 @@ public class Vulkan {
         //End1
             //Start2
             VkApplicationInfo appInfo = VkApplicationInfo.calloc(stack); //ポインタを突っ込む構造体を用意して、ポインタを突っ込む
-            appInfo.sType(VK_STRUCTURE_TYPE_APPLICATION_INFO); //アプリ情報
+            appInfo.sType(VK_STRUCTURE_TYPE_APPLICATION_INFO); //この構造体(appInfo)はアプリ情報ですよーっていうラベルをくっつける
             appInfo.pApplicationName(stack.UTF8Safe("LWJGL Voxel Game")); //タイトルを設定
             appInfo.applicationVersion(VK_MAKE_VERSION(1, 0, 0)); //バージョンを設定
             appInfo.pEngineName(stack.UTF8Safe("No Engine")); //エンジン名を設定
