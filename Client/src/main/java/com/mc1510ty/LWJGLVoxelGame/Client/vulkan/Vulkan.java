@@ -9,7 +9,8 @@ public class Vulkan {
         public long swapchainHandle;
         public long[] images;
         public int imageFormat;
-        public VkExtent2D extent;
+        public int width;
+        public int height;
     }
 
 
@@ -25,13 +26,18 @@ public class Vulkan {
     private VkPhysicalDevice physicalDevice;
     private VkDevice device;
     private VkQueue graphicsQueue;
+    int graphicsQueueFamilyIndex;
     //スワップチェーン類
         private long swapchain;
         private long[] swapchainImages;
         private int swapchainImageFormat;
-        private VkExtent2D swapchainExtent;
+        private int width;
+        private int height;
     private long[] imageviews;
     private long renderpass;
+    private long[] framebuffers;
+    private long commandpool;
+    private long[] commandbuffers;
 
     public void initVulkan(long window) {
         long startTime = System.nanoTime();
@@ -41,14 +47,20 @@ public class Vulkan {
         surface = new createSurface().createSurface(instance,window);
         physicalDevice = new selectPhysicalDevice().select(instance,surface);
         device = new createDevice().create(physicalDevice,surface);
-        graphicsQueue = new getVkQueue().getGraphicsQueue(device, physicalDevice);
+        getVkQueue queueGetter = new getVkQueue();
+        graphicsQueue = queueGetter.getGraphicsQueue(device, physicalDevice);
+        graphicsQueueFamilyIndex = queueGetter.findGraphicsQueueFamily(physicalDevice);
         SwapchainBundle bundle = new createSwapchain().create(device,physicalDevice,surface,window);
             this.swapchain = bundle.swapchainHandle;
             this.swapchainImages = bundle.images;
             this.swapchainImageFormat = bundle.imageFormat;
-            this.swapchainExtent = bundle.extent;
+            this.width = bundle.width;
+            this.height = bundle.height;
         imageviews = new createImageView().create(device,swapchainImages,swapchainImageFormat);
         renderpass = new createRenderPass().create(device, swapchainImageFormat);
+        framebuffers = new createFramebuffer().create(device,renderpass,imageviews,width,height);
+        commandpool = new createCommandPool().create(device,graphicsQueueFamilyIndex);
+        commandbuffers = new createCommandBuffer().create(device,commandpool,swapchainImages.length);
 
 
 

@@ -22,7 +22,7 @@ public class getVkQueue {
         }
     }
 
-    private int findGraphicsQueueFamily(VkPhysicalDevice physicalDevice) {
+    public int findGraphicsQueueFamily(VkPhysicalDevice physicalDevice) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             IntBuffer queueFamilyCount = stack.mallocInt(1);
             VK10.vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, queueFamilyCount, null);

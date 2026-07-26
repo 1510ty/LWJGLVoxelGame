@@ -91,7 +91,7 @@ public class ClientLauncher {
 
         //GLFW設定
         glfwDefaultWindowHints(); //リセット!
-        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE); //最初は非表示
+    //        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE); //最初は非表示
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE); //サイズ変更可能
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); //OpenGLを勝手にセットアップするな
 

@@ -93,7 +93,8 @@ public class createSwapchain {
             bundle.swapchainHandle = swapchainHandle;
             bundle.images = images;
             bundle.imageFormat = imageFormat;
-            bundle.extent = extent;
+            bundle.width = extent.width();
+            bundle.height = extent.height();
 
             IO.println("スワップチェーンの作成完了");
             return bundle;
