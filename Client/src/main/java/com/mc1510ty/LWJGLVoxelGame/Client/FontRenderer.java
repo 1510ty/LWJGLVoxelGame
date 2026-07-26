@@ -57,7 +57,7 @@ public class FontRenderer {
     // 頂点バッファ関連（動的確保）
     private long fontVertexBuffer;
     private long fontVertexMemory;
-    private long vertexBufferCapacity = 0;
+    private long vertexBufferCapacity = 1024 * 4 * 4 * Float.BYTES; // 1024文字分の容量を確保
 
     private static final int BITMAP_W = 1024;
     private static final int BITMAP_H = 1024;
@@ -67,13 +67,18 @@ public class FontRenderer {
     public FontRenderer(VkDevice device, VkPhysicalDevice physicalDevice, long renderPass, int subpass, long commandPool, VkQueue graphicsQueue, String resourcePath) {
         this.device = device;
         this.physicalDevice = physicalDevice;
+        System.out.println("[FontRenderer Debug] 初期化を開始します。リソースパス: " + resourcePath);
 
         try {
             ByteBuffer ttf = loadResourceToByteBuffer(resourcePath);
+            System.out.println("[FontRenderer Debug] フォントのバイトバッファ読み込み成功. サイズ: " + ttf.remaining());
+
             ByteBuffer bitmap = MemoryUtil.memAlloc(BITMAP_W * BITMAP_H);
             cdata = STBTTBakedChar.malloc(NUM_CHARS);
 
             stbtt_BakeFontBitmap(ttf, 24.0f, bitmap, BITMAP_W, BITMAP_H, FIRST_CHAR, cdata);
+            System.out.println("[FontRenderer Debug] stbtt_BakeFontBitmap によるフォントベイクが完了しました。");
+
             // 1. テクスチャ画像の作成とGPUへの転送
             createFontTexture(commandPool, graphicsQueue, bitmap);
 
@@ -86,7 +91,9 @@ public class FontRenderer {
                 bitmap.get(bytes);
                 img.getRaster().setDataElements(0, 0, width, height, bytes);
                 javax.imageio.ImageIO.write(img, "png", new java.io.File("font_debug.png"));
+                System.out.println("[FontRenderer Debug] font_debug.png の書き出しに成功しました。");
             } catch (Exception e) {
+                System.err.println("[FontRenderer Error] font_debug.png の書き出しに失敗しました: " + e.getMessage());
                 e.printStackTrace();
             }
 
@@ -96,16 +103,22 @@ public class FontRenderer {
             MemoryUtil.memFree(bitmap);
         } catch (IOException e) {
             e.printStackTrace();
-            throw new RuntimeException("フォントの読み込みに失敗しました: " + resourcePath);
+            System.err.println("[FontRenderer Error] 致命的エラー: フォントの読み込みに失敗しました: " + resourcePath);
+            throw new RuntimeException("フォントの読み込みに失敗しました: " + resourcePath, e);
         }
 
         // 3. ディスクリプタとパイプラインの構築
         setupPipelineAndDescriptors(renderPass, subpass);
+
+        ensureVertexBufferSize(1024 * 4 * 4 * Float.BYTES);
+
+        System.out.println("[FontRenderer Debug] フォントレンダラーの初期化がすべて完了しました。");
     }
 
     private ByteBuffer loadResourceToByteBuffer(String path) throws IOException {
         try (InputStream in = FontRenderer.class.getResourceAsStream(path)) {
             if (in == null) {
+                System.err.println("[FontRenderer Error] ファイルが見つかりません: " + path);
                 throw new IOException("ファイルが見つかりません: " + path);
             }
             byte[] bytes = in.readAllBytes();
@@ -117,6 +130,7 @@ public class FontRenderer {
     }
 
     private void createFontTexture(long commandPool, VkQueue graphicsQueue, ByteBuffer bitmap) {
+        System.out.println("[FontRenderer Debug] createFontTexture 開始");
         long imageSize = BITMAP_W * BITMAP_H;
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
@@ -189,15 +203,24 @@ public class FontRenderer {
             vkDestroyBuffer(device, stagingBuffer, null);
             vkFreeMemory(device, stagingMemory, null);
         }
+        System.out.println("[FontRenderer Debug] createFontTexture 完了");
     }
 
     private void createImageViewAndSampler() {
+        System.out.println("[FontRenderer Debug] createImageViewAndSampler 開始");
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkImageViewCreateInfo viewInfo = VkImageViewCreateInfo.calloc(stack)
                     .sType(VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO)
                     .image(fontImage)
                     .viewType(VK_IMAGE_VIEW_TYPE_2D)
                     .format(VK_FORMAT_R8_UNORM);
+
+            viewInfo.components()
+                    .r(VK_COMPONENT_SWIZZLE_IDENTITY)
+                    .g(VK_COMPONENT_SWIZZLE_IDENTITY)
+                    .b(VK_COMPONENT_SWIZZLE_IDENTITY)
+                    .a(VK_COMPONENT_SWIZZLE_IDENTITY);
+
             viewInfo.subresourceRange().aspectMask(VK_IMAGE_ASPECT_COLOR_BIT);
             viewInfo.subresourceRange().baseMipLevel(0);
             viewInfo.subresourceRange().levelCount(1);
@@ -205,7 +228,10 @@ public class FontRenderer {
             viewInfo.subresourceRange().layerCount(1);
 
             LongBuffer pView = stack.mallocLong(1);
-            vkCreateImageView(device, viewInfo, null, pView);
+            int err = vkCreateImageView(device, viewInfo, null, pView);
+            if (err != VK_SUCCESS) {
+                System.err.println("[FontRenderer Error] vkCreateImageView 失敗. Error code: " + err);
+            }
             fontImageView = pView.get(0);
 
             VkSamplerCreateInfo samplerInfo = VkSamplerCreateInfo.calloc(stack)
@@ -224,12 +250,17 @@ public class FontRenderer {
                     .mipmapMode(VK_SAMPLER_MIPMAP_MODE_LINEAR);
 
             LongBuffer pSampler = stack.mallocLong(1);
-            vkCreateSampler(device, samplerInfo, null, pSampler);
+            err = vkCreateSampler(device, samplerInfo, null, pSampler);
+            if (err != VK_SUCCESS) {
+                System.err.println("[FontRenderer Error] vkCreateSampler 失敗. Error code: " + err);
+            }
             fontSampler = pSampler.get(0);
         }
+        System.out.println("[FontRenderer Debug] createImageViewAndSampler 完了");
     }
 
     private void setupPipelineAndDescriptors(long renderPass, int subpass) {
+        System.out.println("[FontRenderer Debug] setupPipelineAndDescriptors 開始");
         try (MemoryStack stack = MemoryStack.stackPush()) {
             // 1. ディスクリプタセットレイアウトの作成 (サンプラー用)
             VkDescriptorSetLayoutBinding.Buffer setLayoutBinding = VkDescriptorSetLayoutBinding.calloc(1, stack)
@@ -282,16 +313,16 @@ public class FontRenderer {
                     .dstBinding(0)
                     .dstArrayElement(0)
                     .descriptorType(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                    .descriptorCount(1) // ← ここに「1」を追加します！
+                    .descriptorCount(1)
                     .pImageInfo(imageInfo);
 
             vkUpdateDescriptorSets(device, descriptorWrite, null);
 
-            // 3. パイプラインレイアウト（プッシュ定数: 投影行列 + 文字色 = 16 + 12 = 28 -> パディング含め80バイト確保など）
+            // 3. パイプラインレイアウト
             VkPushConstantRange.Buffer pushConstantRange = VkPushConstantRange.calloc(1, stack)
                     .stageFlags(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
                     .offset(0)
-                    .size(80); // mat4 (64) + vec3 (12) + 4(padding) = 80
+                    .size(80);
 
             VkPipelineLayoutCreateInfo pipelineLayoutInfo = VkPipelineLayoutCreateInfo.calloc(stack)
                     .sType(VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO)
@@ -315,14 +346,12 @@ public class FontRenderer {
                     .module(vertModule)
                     .pName(stack.UTF8("main"));
 
-            // 1番目：フラグメントシェーダー
             stages.get(1)
                     .sType(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO)
                     .stage(VK_SHADER_STAGE_FRAGMENT_BIT)
                     .module(fragModule)
                     .pName(stack.UTF8("main"));
 
-            // 頂点レイアウト (aPos: vec2, aTexCoord: vec2 = 16 bytes)
             VkVertexInputBindingDescription.Buffer bindingDesc = VkVertexInputBindingDescription.calloc(1, stack)
                     .binding(0)
                     .stride(4 * Float.BYTES)
@@ -355,7 +384,6 @@ public class FontRenderer {
                     .sType(VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO)
                     .rasterizationSamples(VK_SAMPLE_COUNT_1_BIT);
 
-            // フォント描画用のアルファブリーディング有効化
             VkPipelineColorBlendAttachmentState.Buffer colorBlendAttachment = VkPipelineColorBlendAttachmentState.calloc(1, stack)
                     .colorWriteMask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT)
                     .blendEnable(true)
@@ -377,8 +405,8 @@ public class FontRenderer {
 
             VkPipelineDepthStencilStateCreateInfo depthStencil = VkPipelineDepthStencilStateCreateInfo.calloc(stack)
                     .sType(VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO)
-                    .depthTestEnable(false)      // ← ここを false に！
-                    .depthWriteEnable(false)     // ← ここも false に！
+                    .depthTestEnable(false)
+                    .depthWriteEnable(false)
                     .depthCompareOp(VK_COMPARE_OP_LESS)
                     .depthBoundsTestEnable(false)
                     .stencilTestEnable(false);
@@ -400,17 +428,22 @@ public class FontRenderer {
                     .subpass(subpass);
 
             LongBuffer pPipeline = stack.mallocLong(1);
-            vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, pipelineInfo, null, pPipeline);
+            int err = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, pipelineInfo, null, pPipeline);
+            if (err != VK_SUCCESS) {
+                System.err.println("[FontRenderer Error] vkCreateGraphicsPipelines 失敗. Error code: " + err);
+            }
             graphicsPipeline = pPipeline.get(0);
 
             vkDestroyShaderModule(device, vertModule, null);
             vkDestroyShaderModule(device, fragModule, null);
         }
+        System.out.println("[FontRenderer Debug] setupPipelineAndDescriptors 完了");
     }
 
     private ByteBuffer loadShaderFile(String path) {
         try (java.io.InputStream is = getClass().getClassLoader().getResourceAsStream(path)) {
             if (is == null) {
+                System.err.println("[FontRenderer Error] シェーダーファイルが見つかりません: " + path);
                 throw new RuntimeException("シェーダーファイルが見つかりません: " + path);
             }
             byte[] bytes = is.readAllBytes();
@@ -424,7 +457,14 @@ public class FontRenderer {
     }
 
     public void drawText(VkCommandBuffer commandBuffer, String text, float x, float y, double scale, int screenWidth, int screenHeight, Vector3d color) {
-        if (text == null || text.isEmpty()) return;
+
+
+        if (text == null || text.isEmpty()) {
+            System.out.println("[FontRenderer Debug] drawText: テキストが空のため描画をスキップします。");
+            return;
+        }
+
+        System.out.println("[FontRenderer Debug] drawText 呼び出し: \"" + text + "\" at (" + x + ", " + y + "), 画面サイズ: " + screenWidth + "x" + screenHeight);
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
@@ -446,11 +486,9 @@ public class FontRenderer {
 
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, culLongBuffer(descriptorSet), null);
 
-        // 投影行列の計算 (2D オルソ)
         Matrix4d ortho = new Matrix4d().ortho2D(0, screenWidth, screenHeight, 0);
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
-            // プッシュ定数に投影行列と文字色を書き込む (計80バイト)
             ByteBuffer pushConst = stack.malloc(80);
             org.joml.Matrix4f floatOrtho = new org.joml.Matrix4f(
                     (float)ortho.m00(), (float)ortho.m01(), (float)ortho.m02(), (float)ortho.m03(),
@@ -468,65 +506,40 @@ public class FontRenderer {
             vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, pushConst);
         }
 
-        // 文字ごとの頂点データ生成
+
         try (MemoryStack stack = MemoryStack.stackPush()) {
             STBTTAlignedQuad q = STBTTAlignedQuad.malloc(stack);
-            FloatBuffer verticesBuffer = stack.mallocFloat(text.length() * 24); // 6頂点 × 4値 (x, y, s, t)
+            FloatBuffer verticesBuffer = stack.mallocFloat(text.length() * 24);
 
             float[] xpos = { x };
             float[] ypos = { y + 20.0f };
-            int validCharCount = 0;
+            int validCharCount = intDebugCharCount(text); // デバッグ用文字数カウント
 
-//            for (int i = 0; i < text.length(); i++) {
-//                char c = text.charAt(i);
-//                if (c < FIRST_CHAR || c >= FIRST_CHAR + NUM_CHARS) continue;
-//
-//                stbtt_GetBakedQuad(cdata, BITMAP_W, BITMAP_H, c - FIRST_CHAR, xpos, ypos, q, true);
-//
-//                float x0 = q.x0();
-//                float y0 = q.y0();
-//                float x1 = q.x1();
-//                float y1 = q.y1();
-//                float s0 = q.s0();
-//                float t0 = q.t0();
-//                float s1 = q.s1();
-//                float t1 = q.t1();
-//
-//                // 三角形 1
-//                verticesBuffer.put(x0).put(y0).put(s0).put(t0);
-//                verticesBuffer.put(x0).put(y1).put(s0).put(t1);
-//                verticesBuffer.put(x1).put(y1).put(s1).put(t1);
-//
-//                // 三角形 2
-//                verticesBuffer.put(x0).put(y0).put(s0).put(t0);
-//                verticesBuffer.put(x1).put(y1).put(s1).put(t1);
-//                verticesBuffer.put(x1).put(y0).put(s1).put(t0);
-//
-//                validCharCount++;
-//            }
             for (int i = 0; i < text.length(); i++) {
                 char c = text.charAt(i);
-                if (c < FIRST_CHAR || c >= FIRST_CHAR + NUM_CHARS) continue;
+                if (c < FIRST_CHAR || c >= FIRST_CHAR + NUM_CHARS) {
+                    System.out.println("[FontRenderer Debug] 文字範囲外スキップ: '" + c + "' (コード: " + (int)c + ")");
+                    continue;
+                }
 
                 stbtt_GetBakedQuad(cdata, BITMAP_W, BITMAP_H, c - FIRST_CHAR, xpos, ypos, q, true);
 
-                // scale を反映させる場合
-                float x0 = (float) (q.x0() * scale);
-                float y0 = (float) (q.y0() * scale);
-                float x1 = (float) (q.x1() * scale);
-                float y1 = (float) (q.y1() * scale);
+                float x0 = q.x0();
+                float y0 = q.y0();
+                float x1 = q.x1();
+                float y1 = q.y1();
+
+                System.out.println("[FontDebug] 文字 '" + c + "': x(" + x0 + " ~ " + x1 + "), y(" + y0 + " ~ " + y1 + ")");
+
                 float s0 = q.s0();
                 float t0 = q.t0();
                 float s1 = q.s1();
                 float t1 = q.t1();
 
-                // カリング対策として頂点の巻く方向を反転させる（または三角形の順序を入れ替え）
-                // 三角形 1
                 verticesBuffer.put(x0).put(y0).put(s0).put(t0);
-                verticesBuffer.put(x1).put(y1).put(s1).put(t1);
                 verticesBuffer.put(x0).put(y1).put(s0).put(t1);
+                verticesBuffer.put(x1).put(y1).put(s1).put(t1);
 
-                // 三角形 2
                 verticesBuffer.put(x0).put(y0).put(s0).put(t0);
                 verticesBuffer.put(x1).put(y1).put(s1).put(t1);
                 verticesBuffer.put(x1).put(y0).put(s1).put(t0);
@@ -535,12 +548,19 @@ public class FontRenderer {
             }
             verticesBuffer.flip();
 
-            if (validCharCount == 0) return;
+            System.out.println("[FontRenderer Debug] 有効な文字数 (validCharCount): " + validCharCount);
+            if (validCharCount == 0) {
+                System.out.println("[FontRenderer Debug] 描画可能な文字が0個のため描画を中断します。");
+                return;
+            }
+
 
             long requiredSize = verticesBuffer.remaining() * Float.BYTES;
-            ensureVertexBufferSize(requiredSize);
+            if (requiredSize > vertexBufferCapacity) {
+                System.err.println("[FontRenderer Error] 描画する文字数がバッファ容量を超えています！");
+                return;
+            }
 
-            // 頂点データをGPUバッファにマップしてコピー
             try (MemoryStack innerStack = MemoryStack.stackPush()) {
                 org.lwjgl.PointerBuffer pData = innerStack.mallocPointer(1);
                 vkMapMemory(device, fontVertexMemory, 0, requiredSize, 0, pData);
@@ -552,19 +572,34 @@ public class FontRenderer {
             LongBuffer pOffsets = stack.longs(0);
             vkCmdBindVertexBuffers(commandBuffer, 0, pBuffers, pOffsets);
 
+            System.out.println("[FontRenderer Debug] vkCmdDraw 実行. 頂点数: " + (validCharCount * 6));
             vkCmdDraw(commandBuffer, validCharCount * 6, 1, 0, 0);
         }
     }
 
+    private int intDebugCharCount(String text) {
+        int count = 0;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c >= FIRST_CHAR && c < FIRST_CHAR + NUM_CHARS) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     private void ensureVertexBufferSize(long requiredSize) {
         if (vertexBufferCapacity >= requiredSize) return;
+
+        System.out.println("[FontRenderer Debug] 頂点バッファを拡張します。新サイズ要求: " + requiredSize);
 
         if (fontVertexBuffer != 0) {
             vkDestroyBuffer(device, fontVertexBuffer, null);
             vkFreeMemory(device, fontVertexMemory, null);
         }
 
-        vertexBufferCapacity = Math.max(requiredSize, 4096); // 最低限のサイズを確保
+//        vertexBufferCapacity = Math.max(requiredSize, 4096);
+        vertexBufferCapacity = 1024 * 4 * 4 * Float.BYTES; // 1024文字分の容量を確保
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkBufferCreateInfo bufferInfo = VkBufferCreateInfo.calloc(stack)
@@ -605,6 +640,7 @@ public class FontRenderer {
                     return i;
                 }
             }
+            System.err.println("[FontRenderer Error] 適切なメモリタイプが見つかりませんでした。typeFilter: " + typeFilter + ", properties: " + properties);
             throw new RuntimeException("適切なメモリタイプが見つかりませんでした。");
         }
     }
@@ -615,7 +651,10 @@ public class FontRenderer {
                     .sType(VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO)
                     .pCode(code);
             LongBuffer pModule = stack.mallocLong(1);
-            vkCreateShaderModule(device, createInfo, null, pModule);
+            int err = vkCreateShaderModule(device, createInfo, null, pModule);
+            if (err != VK_SUCCESS) {
+                System.err.println("[FontRenderer Error] シェーダーモジュールの作成に失敗しました. Error code: " + err);
+            }
             return pModule.get(0);
         }
     }
@@ -627,7 +666,6 @@ public class FontRenderer {
         return buf;
     }
 
-    // 画像のレイアウト変更やコピー用ヘルパー
     private void transitionImageLayout(long commandPool, VkQueue queue, long image, int format, int oldLayout, int newLayout) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkCommandBufferAllocateInfo allocInfo = VkCommandBufferAllocateInfo.calloc(stack)
@@ -730,6 +768,7 @@ public class FontRenderer {
     }
 
     public void cleanup() {
+        System.out.println("[FontRenderer Debug] cleanup 呼び出し");
         if (graphicsPipeline != 0) vkDestroyPipeline(device, graphicsPipeline, null);
         if (pipelineLayout != 0) vkDestroyPipelineLayout(device, pipelineLayout, null);
         if (descriptorPool != 0) vkDestroyDescriptorPool(device, descriptorPool, null);

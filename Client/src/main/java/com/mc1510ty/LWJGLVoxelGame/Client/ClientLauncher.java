@@ -730,7 +730,7 @@ public class ClientLauncher {
                             swapchainImageWidth, swapchainImageHeight,
                             new Vector3d(1.0f, 1.0f, 1.0f)
                     );
-                    IO.println("とってるわぼけ");
+//                    IO.println("とってるわぼけ");
 
                 } else if (currentState == GameState.ADDRESS_INPUT) {
                     fontRenderer.drawText(
