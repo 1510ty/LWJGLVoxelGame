@@ -13,31 +13,45 @@ public class Vulkan {
         public int height;
     }
 
+    public static class SyncObjects {
+        public long[] imageAvailableSemaphores;
+        public long[] renderFinishedSemaphores;
+        public long[] inFlightFences;
+    }
+
 
     //定数
     //バリデーションレイヤー(エラーとかが見やすくなるやつ)の名前の定義
-    private static final String VALIDATION_LAYER = "VK_LAYER_KHRONOS_validation";
+    public static final String VALIDATION_LAYER = "VK_LAYER_KHRONOS_validation";
     //バリデーションレイヤーをONにするか
-    private static final boolean ENABLE_VALIDATION_LAYERS = true; // 開発中はtrueにする
+    public static final boolean ENABLE_VALIDATION_LAYERS = true; // 開発中はtrueにする
 
     //Vulkanインスタンス
-    private VkInstance instance;
-    private long surface;
-    private VkPhysicalDevice physicalDevice;
-    private VkDevice device;
-    private VkQueue graphicsQueue;
+    public VkInstance instance;
+    public long surface;
+    public VkPhysicalDevice physicalDevice;
+    public VkDevice device;
+    public VkQueue graphicsQueue;
     int graphicsQueueFamilyIndex;
     //スワップチェーン類
-        private long swapchain;
-        private long[] swapchainImages;
-        private int swapchainImageFormat;
-        private int width;
-        private int height;
-    private long[] imageviews;
-    private long renderpass;
-    private long[] framebuffers;
-    private long commandpool;
-    private long[] commandbuffers;
+        public long swapchain;
+        public long[] swapchainImages;
+        public int swapchainImageFormat;
+        public int width;
+        public int height;
+    public long[] imageviews;
+    public long renderpass;
+    public long[] framebuffers;
+    public long commandpool;
+    public long[] commandbuffers;
+        public long[] imageAvailableSemaphores;
+        public long[] renderFinishedSemaphores;
+        public long[] inFlightFences;
+    public long vertShaderModule;
+    public long fragShaderModule;
+    public long graphicspipeline;
+
+    public long[] imagesInFlight;
 
     public void initVulkan(long window) {
         long startTime = System.nanoTime();
@@ -56,13 +70,19 @@ public class Vulkan {
             this.swapchainImageFormat = bundle.imageFormat;
             this.width = bundle.width;
             this.height = bundle.height;
+        imagesInFlight = new long[swapchainImages.length];
         imageviews = new createImageView().create(device,swapchainImages,swapchainImageFormat);
         renderpass = new createRenderPass().create(device, swapchainImageFormat);
         framebuffers = new createFramebuffer().create(device,renderpass,imageviews,width,height);
         commandpool = new createCommandPool().create(device,graphicsQueueFamilyIndex);
         commandbuffers = new createCommandBuffer().create(device,commandpool,swapchainImages.length);
-
-
+        SyncObjects syncobjects = new createFenceAndSemaphore().create(device,2,swapchainImages.length);
+            this.imageAvailableSemaphores = syncobjects.imageAvailableSemaphores;
+            this.renderFinishedSemaphores = syncobjects.renderFinishedSemaphores;
+            this.inFlightFences = syncobjects.inFlightFences;
+        vertShaderModule = new createShaderModule().create(device, "shaders/vert.spv");
+        fragShaderModule = new createShaderModule().create(device, "shaders/frag.spv");
+        graphicspipeline = new createGraphicsPipeline().create(device,renderpass,vertShaderModule,fragShaderModule,width,height);
 
         long endTime = System.nanoTime();
         double elapsedSeconds = (endTime - startTime) / 1_000_000_000.0;

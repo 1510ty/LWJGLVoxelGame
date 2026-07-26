@@ -46,7 +46,8 @@ public class createSwapchain {
             VkExtent2D extent = chooseSwapExtent(capabilities, window, stack);
 
             // 5. スワップチェーンの画像枚数を決める（最低枚数 + 1枚）
-            int imageCount = capabilities.minImageCount() + 1;
+//            int imageCount = capabilities.minImageCount() + 1;
+            int imageCount = Math.max(capabilities.minImageCount(), 2);
             if (capabilities.maxImageCount() > 0 && imageCount > capabilities.maxImageCount()) {
                 imageCount = capabilities.maxImageCount();
             }
