@@ -13,7 +13,7 @@ import static org.lwjgl.vulkan.KHRSurface.*;
 
 public class createSwapchain {
 
-    public Vulkan.SwapchainBundle create(VkDevice device, VkPhysicalDevice physicalDevice, long surface, long window) {
+    public Vulkan.SwapchainBundle create(VkDevice device, VkPhysicalDevice physicalDevice, long surface, long window, long oldSwapchain) {
         IO.println("スワップチェーンの作成を開始します");
         try (MemoryStack stack = MemoryStack.stackPush()) {
             // 1. サーフェイスの機能（Capabilities）を取得する
@@ -65,7 +65,7 @@ public class createSwapchain {
             createInfo.compositeAlpha(KHRSurface.VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR);
             createInfo.presentMode(presentMode);
             createInfo.clipped(true);
-            createInfo.oldSwapchain(VK_NULL_HANDLE);
+            createInfo.oldSwapchain(oldSwapchain);
 
             // 7. スワップチェーン本体を生成する
             LongBuffer pSwapchain = stack.mallocLong(1);

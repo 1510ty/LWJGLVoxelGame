@@ -142,10 +142,13 @@ public class ClientLauncher {
                 );
                 int imageIndex = imageIndexBuffer.get(0);
 
-                if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-                    vulkan.recreateSwapchain();
+                if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+                    riyouhuka();
+                    currentFrame = 0;
                     continue;
-                } else if (result != VK_SUCCESS) {
+                } else if (result == VK_SUBOPTIMAL_KHR) {
+                    IO.println("loop: 現在のスワップチェーン類は最適ではない状態ですが、一応描画できるので、このフレームが終わり次第再生成を開始します");
+                }else if (result != VK_SUCCESS) {
                     throw new RuntimeException("スワップチェーン画像の取得に失敗しました");
                 }
 
@@ -209,8 +212,19 @@ public class ClientLauncher {
                 presentInfo.pSwapchains(stack.longs(vulkan.swapchain));
                 presentInfo.pImageIndices(imageIndexBuffer);
 
-                vkQueuePresentKHR(vulkan.graphicsQueue, presentInfo);
+                int presentResult = vkQueuePresentKHR(vulkan.graphicsQueue, presentInfo);
 
+                if (presentResult == VK_ERROR_OUT_OF_DATE_KHR) {
+                    riyouhuka();
+                    currentFrame = 0;
+                    continue;
+                } else if (presentResult == VK_SUBOPTIMAL_KHR) {
+                    saitekidehanai();
+                    currentFrame = 0;
+                    continue;
+                }else if (presentResult != VK_SUCCESS) {
+                    throw new RuntimeException("画面への表示に失敗しました");
+                }
                 // 8. フレームを交互に進める（0 -> 1 -> 0 -> 1...）
                 currentFrame = (currentFrame + 1) % maxFramesInFlight;
             }
@@ -218,6 +232,22 @@ public class ClientLauncher {
 
         // 終了時はデバイスの処理完了を待つ
         vkDeviceWaitIdle(vulkan.device);
+    }
+
+    private void riyouhuka() {
+        IO.println("loop: 現在のスワップチェーン類は古くて使用不可能なので、再生成を開始します");
+        vulkan.recreateSwapchain();
+        saiseiseikannryoumessage();
+    }
+
+    private void saitekidehanai() {
+        IO.println("loop: 現在のスワップチェーン類は利用できるが最適ではない状態なので、再生成を開始します");
+        vulkan.recreateSwapchain();
+        saiseiseikannryoumessage();
+    }
+
+    private void saiseiseikannryoumessage() {
+        IO.println("loop: スワップチェーン類の再生成が完了しました");
     }
 
     private void cleanup() {

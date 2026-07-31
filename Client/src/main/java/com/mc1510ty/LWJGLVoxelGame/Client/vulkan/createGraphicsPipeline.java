@@ -9,40 +9,38 @@ import static org.lwjgl.vulkan.VK10.*;
 
 public class createGraphicsPipeline {
 
-    public long create(VkDevice device, long renderPass, long vertShaderModule, long fragShaderModule, int width, int height) {
+    public Vulkan.PipelineBundle create(VkDevice device, long renderPass, long vertShaderModule, long fragShaderModule, int width, int height) {
         IO.println("グラフィックスパイプラインの作成中...");
 
-        long pipeline;
+        Vulkan.PipelineBundle bundle = new Vulkan.PipelineBundle();
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
             // 1. シェーダーテステージの設定
             VkPipelineShaderStageCreateInfo.Buffer shaderStages = VkPipelineShaderStageCreateInfo.calloc(2, stack);
 
-            // 頂点シェーダー
             VkPipelineShaderStageCreateInfo vertShaderStageInfo = shaderStages.get(0);
             vertShaderStageInfo.sType(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO);
             vertShaderStageInfo.stage(VK_SHADER_STAGE_VERTEX_BIT);
             vertShaderStageInfo.module(vertShaderModule);
             vertShaderStageInfo.pName(stack.UTF8("main"));
 
-            // フラグメントシェーダー
             VkPipelineShaderStageCreateInfo fragShaderStageInfo = shaderStages.get(1);
             fragShaderStageInfo.sType(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO);
             fragShaderStageInfo.stage(VK_SHADER_STAGE_FRAGMENT_BIT);
             fragShaderStageInfo.module(fragShaderModule);
             fragShaderStageInfo.pName(stack.UTF8("main"));
 
-            // 2. 頂点入力（今回はシェーダー内でハードコードするため空っぽ）
+            // 2. 頂点入力
             VkPipelineVertexInputStateCreateInfo vertexInputInfo = VkPipelineVertexInputStateCreateInfo.calloc(stack);
             vertexInputInfo.sType(VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO);
 
-            // 3. 入力アセンブリー（三角形のリストとして描画）
+            // 3. 入力アセンブリー
             VkPipelineInputAssemblyStateCreateInfo inputAssembly = VkPipelineInputAssemblyStateCreateInfo.calloc(stack);
             inputAssembly.sType(VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO);
             inputAssembly.topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
             inputAssembly.primitiveRestartEnable(false);
 
-            // 4. ビューポートとシザース（画面の描画領域）
+            // 4. ビューポートとシザース（現在のwidthとheightを反映）
             VkViewport.Buffer viewport = VkViewport.calloc(1, stack);
             viewport.x(0.0f);
             viewport.y(0.0f);
@@ -60,7 +58,7 @@ public class createGraphicsPipeline {
             viewportState.pViewports(viewport);
             viewportState.pScissors(scissor);
 
-            // 5. ラスタライザ（ポリゴンをどうピクセルに変換するか）
+            // 5. ラスタライザ
             VkPipelineRasterizationStateCreateInfo rasterizer = VkPipelineRasterizationStateCreateInfo.calloc(stack);
             rasterizer.sType(VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO);
             rasterizer.depthClampEnable(false);
@@ -71,13 +69,13 @@ public class createGraphicsPipeline {
             rasterizer.frontFace(VK_FRONT_FACE_CLOCKWISE);
             rasterizer.depthBiasEnable(false);
 
-            // 6. マルチサンプリング（今回は無効）
+            // 6. マルチサンプリング
             VkPipelineMultisampleStateCreateInfo multisampling = VkPipelineMultisampleStateCreateInfo.calloc(stack);
             multisampling.sType(VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO);
             multisampling.sampleShadingEnable(false);
             multisampling.rasterizationSamples(VK_SAMPLE_COUNT_1_BIT);
 
-            // 7. カラーブレンディング（画面の色とどう混ぜるか）
+            // 7. カラーブレンディング
             VkPipelineColorBlendAttachmentState.Buffer colorBlendAttachment = VkPipelineColorBlendAttachmentState.calloc(1, stack);
             colorBlendAttachment.colorWriteMask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT);
             colorBlendAttachment.blendEnable(false);
@@ -87,7 +85,7 @@ public class createGraphicsPipeline {
             colorBlending.logicOpEnable(false);
             colorBlending.pAttachments(colorBlendAttachment);
 
-            // 8. パイプラインレイアウト（ユニフォーム変数などの設定用、今回は空）
+            // 8. パイプラインレイアウト
             VkPipelineLayoutCreateInfo pipelineLayoutInfo = VkPipelineLayoutCreateInfo.calloc(stack);
             pipelineLayoutInfo.sType(VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO);
 
@@ -95,9 +93,9 @@ public class createGraphicsPipeline {
             if (vkCreatePipelineLayout(device, pipelineLayoutInfo, null, pPipelineLayout) != VK_SUCCESS) {
                 throw new RuntimeException("パイプラインレイアウトの作成に失敗しました");
             }
-            long pipelineLayout = pPipelineLayout.get(0);
+            bundle.pipelineLayout = pPipelineLayout.get(0);
 
-            // 9. パイプライン本体の構築情報
+            // 9. パイプライン本体
             VkGraphicsPipelineCreateInfo.Buffer pipelineInfo = VkGraphicsPipelineCreateInfo.calloc(1, stack);
             pipelineInfo.sType(VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO);
             pipelineInfo.pStages(shaderStages);
@@ -107,7 +105,7 @@ public class createGraphicsPipeline {
             pipelineInfo.pRasterizationState(rasterizer);
             pipelineInfo.pMultisampleState(multisampling);
             pipelineInfo.pColorBlendState(colorBlending);
-            pipelineInfo.layout(pipelineLayout);
+            pipelineInfo.layout(bundle.pipelineLayout);
             pipelineInfo.renderPass(renderPass);
             pipelineInfo.subpass(0);
 
@@ -116,10 +114,10 @@ public class createGraphicsPipeline {
                 throw new RuntimeException("グラフィックスパイプラインの作成に失敗しました");
             }
 
-            pipeline = pPipelines.get(0);
+            bundle.pipeline = pPipelines.get(0);
         }
 
         IO.println("グラフィックスパイプラインの作成完了");
-        return pipeline;
+        return bundle;
     }
 }
