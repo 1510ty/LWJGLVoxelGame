@@ -4,6 +4,8 @@ import org.lwjgl.vulkan.*;
 
 public class Vulkan {
 
+    public long window;
+
     //戻り値のセット
     public static class SwapchainBundle {
         public long swapchainHandle;
@@ -57,6 +59,8 @@ public class Vulkan {
         long startTime = System.nanoTime();
         IO.println("Vulkanの初期化を開始します");
 
+        this.window = window; // ★ ウィンドウハンドルを保存
+
         instance = new createVulkanInstance().createVulkanInstance(ENABLE_VALIDATION_LAYERS, VALIDATION_LAYER);
         surface = new createSurface().createSurface(instance,window);
         physicalDevice = new selectPhysicalDevice().select(instance,surface);
@@ -87,6 +91,10 @@ public class Vulkan {
         long endTime = System.nanoTime();
         double elapsedSeconds = (endTime - startTime) / 1_000_000_000.0;
         IO.println("Vulkanの初期化が正常に完了しました: " + elapsedSeconds + "秒");
+    }
+
+    public void recreateSwapchain() {
+
     }
 
 }
