@@ -120,7 +120,7 @@ public class Vulkan {
             glfwWaitEvents();
         }
         long endTime1 = System.nanoTime();
-        double elapsedSeconds1 = (endTime1 - startTime1);
+        double elapsedSeconds1 = (endTime1 - startTime1) / 1_000_000_000.0;
 
         if (zerodatta) {
             IO.println("ウィンドウサイズが1以上になりました");
@@ -168,7 +168,7 @@ public class Vulkan {
         long endTime = System.nanoTime();
         double elapsedSeconds = (endTime - startTime) / 1_000_000_000.0;
 
-        double zissai = (elapsedSeconds - elapsedSeconds1) / 1_000_000_000.0;
+        double zissai = (elapsedSeconds - elapsedSeconds1);
 
         IO.println("スワップチェーン類の再生成完了: " + elapsedSeconds + "秒、実際の処理時間: " + zissai + "秒");
     }
