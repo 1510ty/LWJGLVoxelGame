@@ -1,12 +1,39 @@
-#version 450
+#version 460
 
-// 頂点バッファを使わずに、コード内で直接三角形の座標を定義する
-vec2 positions[3] = vec2[](
-    vec2(0.0, -0.5), // 上
-    vec2(0.5, 0.5),  // 右下
-    vec2(-0.5, 0.5)  // 左下
+layout(location = 0) out vec4 fragColor;
+
+vec2 positions[6] = vec2[](
+    // 1つ目の三角形（左側に配置）
+    vec2(0, 0.5),
+    vec2(0.3, -0.3),
+    vec2(-0.3, -0.3),
+
+    vec2(0.5, 0.5),
+    vec2(0.8, -0.3),
+    vec2(0.2, -0.3)
 );
 
 void main() {
-    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
+    // 現在の頂点位置を取得
+    vec2 pos = positions[gl_VertexIndex];
+
+    pos.y = -pos.y;
+
+    gl_Position = vec4(pos, 0.0, 1.0);
+
+    if (gl_VertexIndex == 0) {
+        fragColor = vec4(1.0, 0.0, 0.0, 1.0); //赤
+    } else if (gl_VertexIndex == 1) {
+        fragColor = vec4(0.0, 1.0, 0.0, 1.0); //緑
+    } else if (gl_VertexIndex == 2) {
+        fragColor = vec4(0.0, 0.0, 1.0, 1.0); //青
+
+
+    } else if (gl_VertexIndex == 3) {
+        fragColor = vec4(0.0, 1.0, 0.0, 1.0); //緑
+    } else if (gl_VertexIndex == 4) {
+        fragColor = vec4(0.0, 0.0, 1.0, 1.0); //青
+    } else if (gl_VertexIndex == 5) {
+        fragColor = vec4(1.0, 0.0, 0.0, 1.0); //赤
+    }
 }
