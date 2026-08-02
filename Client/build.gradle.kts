@@ -29,6 +29,37 @@ tasks{
     }
 }
 
+tasks.register<Exec>("compileShaders") {
+    workingDir(file("src/main/resources/shaders"))
+
+    outputs.upToDateWhen { false }
+
+    if (System.getProperty("os.name").lowercase().contains("windows")) {
+        commandLine("cmd", "/c", "glslc shader.vert -o vert.spv && glslc shader.frag -o frag.spv")
+    } else {
+        commandLine("sh", "-c", "glslc shader.vert -o vert.spv && glslc shader.frag -o frag.spv")
+    }
+}
+
+tasks.named("compileJava") {
+    dependsOn("compileShaders")
+}
+
+tasks.register<Exec>("runShadow") {
+    dependsOn("shadowJar")
+
+    val shadowJarTask = tasks.named<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("shadowJar")
+    val jarFile = shadowJarTask.get().archiveFile.get().asFile.absolutePath
+
+    if (System.getProperty("os.name").lowercase().contains("windows")) {
+        // start を使って別の新しいウィンドウで実行する
+        // (/k にすると、アプリが終了してもウィンドウがそのまま残るのでエラー確認がしやすいです)
+        commandLine("cmd", "/c", "start", "cmd", "/k", "java -jar \"$jarFile\" && pause")
+    } else {
+        commandLine("java", "-jar", jarFile)
+    }
+}
+
 evaluationDependsOn(":Server")
 
 // サーバー側の shadowJar タスクを参照する

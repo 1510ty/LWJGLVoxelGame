@@ -181,7 +181,7 @@ public class ClientLauncher {
 
                 vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
                 vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan.graphicspipeline);
-                vkCmdDraw(commandBuffer, 3, 1, 0, 0); // 三角形を描く
+                vkCmdDraw(commandBuffer, 6, 1, 0, 0); // 三角形を描く
                 vkCmdEndRenderPass(commandBuffer);
 
                 if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
