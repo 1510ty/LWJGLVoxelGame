@@ -61,8 +61,8 @@ public class ClientLauncher {
 
     //ウィンドウ関連
     private long window;
-    private static final int WIDTH = 1280;
-    private static final int HEIGHT = 720;
+    private static final int WIDTH = 800;
+    private static final int HEIGHT = 800;
 
     //IngratedServer関連
     private Process serverProcess;
@@ -104,6 +104,7 @@ public class ClientLauncher {
     //        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE); //最初は非表示
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE); //サイズ変更可能
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); //OpenGLを勝手にセットアップするな
+
 
         //ウィンドウ作成
         window = glfwCreateWindow(WIDTH, HEIGHT, "Voxel Game Client (Vulkan)", NULL, NULL);
